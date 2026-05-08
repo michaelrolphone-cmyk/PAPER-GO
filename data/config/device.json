@@ -1,0 +1,6 @@
+{
+  "deviceName": "T5 Field OS",
+  "lockTimeoutSec": 60,
+  "homeApp": "springboard",
+  "developerMode": true
+}
