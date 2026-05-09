@@ -1,0 +1,61 @@
+openapi: 3.0.3
+info:
+  title: T5 Field OS Web API
+  version: 0.1.0
+paths:
+  /api/health:
+    get:
+      summary: Web service health
+      responses:
+        '200':
+          description: OK
+  /api/status:
+    get:
+      summary: Device status snapshot
+      responses:
+        '200':
+          description: Current status JSON
+        '503':
+          description: Status context unavailable
+  /api/apps/order:
+    get:
+      summary: Returns configured app order JSON from SD config
+      responses:
+        '200':
+          description: App order config
+        '404':
+          description: Missing config
+
+  /api/weather/cache:
+    get:
+      summary: Returns cached weather JSON
+      responses:
+        "200":
+          description: Cached weather payload
+        "404":
+          description: Missing weather cache file
+
+  /api/cache/stats:
+    get:
+      summary: Returns map cache hit/miss counters
+      responses:
+        "200":
+          description: Cache stats payload
+        "503":
+          description: Cache context unavailable
+
+  /api/radio/scans:
+    get:
+      summary: List saved radio scan log files
+      responses:
+        "200":
+          description: Radio scan file list
+        "404":
+          description: Missing scans directory
+
+  /api/meshtastic/stats:
+    get:
+      summary: Returns Meshtastic storage counts
+      responses:
+        "200":
+          description: Meshtastic message/node counts

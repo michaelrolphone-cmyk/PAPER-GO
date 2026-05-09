@@ -183,6 +183,15 @@ The firmware shall support:
 
 ## 4.4 Shared Navigation
 
+### 4.5 Implementation Checklist
+
+- [x] Tap classification implemented.
+- [x] Long-press classification implemented.
+- [x] Swipe up/down/left/right classification implemented.
+- [x] Drag classification implemented for scrolling flows.
+- [ ] Two-point touch gesture handling integrated with GT911 driver.
+
+
 Every app shall provide:
 
 1. Back gesture or back button.
@@ -302,6 +311,14 @@ Each app icon shall have:
 5. Disabled/offline visual state if required service is unavailable.
 
 ## 7.3 Launcher Behavior
+
+### 7.4 Implementation Checklist
+
+- [x] Persistent app ordering stored in `/config/apps.json` and loaded at launcher start.
+- [x] Unknown IDs are rejected and duplicate IDs are deduplicated when loading ordering.
+- [ ] Long-press app options implemented.
+- [ ] Multi-page swipe navigation implemented when icon count exceeds one screen.
+
 
 The launcher shall support:
 
@@ -1203,3 +1220,60 @@ This should be treated as a miniature e-paper field computer OS, with the spring
 [1]: https://lilygo.cc/en-us/products/t5-e-paper-s3-pro?srsltid=AfmBOoofcnSonjX3RjfaPmReKQc9Vl08gY_-lu0pc5AmIPZDFCd11Ca8&utm_source=chatgpt.com "T5 E-Paper S3 Pro"
 [2]: https://wiki.lilygo.cc/get_started/en/Wearable/T5-E-Paper-S3-Pro/T5-E-Paper-S3-Pro.html?utm_source=chatgpt.com "LILYGO T5 E-Paper S3 Pro"
 [3]: https://github.com/meshtastic/firmware/issues/6607?utm_source=chatgpt.com "[Board]: T5S3 aka T5 E-Paper S3 Pro · Issue #6607"
+
+
+### 5.4 Implementation Checklist
+
+- [x] Status bar GPS indicator includes explicit states: Off, Searching, 2D fix, 3D fix, Degraded/stale, and No data.
+- [x] Time source priority is implemented in code using RTC -> GPS -> Network -> Saved.
+- [ ] Lock screen displays resolved location summary/map preview from live cache pipeline.
+- [ ] Status bar unread-message and cache-activity indicators.
+
+
+### 19.4 Implementation Checklist
+
+- [x] Lightweight onboard HTTP server serves static content from `/webroot` with MIME detection.
+- [x] URI path traversal rejection (`..` and backslash) for static content requests.
+- [x] JSON health endpoint implemented (`GET /api/health`).
+- [ ] Full remote app management API (install/remove/update apps).
+
+- [x] Offline map behavior exposes cached/partial/uncached view state.
+- [x] Cache lookup hit/miss tracking implemented for map tile checks.
+
+- [x] Global Home navigation via swipe-down gesture.
+- [x] Global Back navigation via swipe-right gesture using app history stack.
+
+- [x] Radio scans are persisted under `/radio/scans/` with timestamped entries.
+- [x] Saved scan entries include signal information and GPS location when available.
+
+- [x] Weather cache is labeled stale/fresh in the Weather app UI.
+- [x] Weather cache data is loaded from `/cache/weather/current.json`.
+
+- [x] URL Fetcher reads URL config and caches HTTP responses under `/cache/http`.
+- [x] URL Fetcher supports offline cached-response fallback when Wi-Fi is unavailable.
+
+- [x] Markdown Reader loads markdown content from SD (`/documents/markdown/readme.md`).
+- [x] Markdown Reader renders a bounded preview view suitable for e-paper updates.
+
+- [x] Web API exposes `/api/status` for core device status snapshot.
+- [x] OpenAPI specification added for `/api/health`, `/api/status`, and `/api/apps/order`.
+
+- [x] Web API exposes cached weather payload endpoint (`/api/weather/cache`).
+
+- [x] BLE scan output includes service UUID and manufacturer-data summary fields.
+
+- [x] Lock screen renders large time/date and coordinate summary from available GPS epoch/fix.
+- [x] Lock screen displays GPS and battery status fields.
+
+- [x] File Explorer displays directory-first sorted listings for SD browsing.
+
+- [x] GPS best-fit location computed from recent fixes with basic outlier rejection.
+
+- [x] Meshtastic storage includes `/meshtastic/config` in addition to messages/nodes.
+- [x] Meshtastic app surfaces SD storage counts for messages and nodes.
+
+- [x] Web API exposes cache hit/miss counters via `/api/cache/stats`.
+
+- [x] Web API exposes radio scan log listing endpoint (`/api/radio/scans`).
+
+- [x] Web API exposes Meshtastic storage counters endpoint (`/api/meshtastic/stats`).

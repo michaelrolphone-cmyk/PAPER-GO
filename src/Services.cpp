@@ -3,6 +3,13 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <SD.h>
+#include "WebUtils.h"
+#include "StatusApiLogic.h"
+#include "GpsBestFitLogic.h"
+#include "BleAdvertLogic.h"
+#include "CacheApiLogic.h"
+#include "RadioApiLogic.h"
+#include "MeshtasticApiLogic.h"
 
 static double bearingDeg(double lat1, double lon1, double lat2, double lon2) {
   const double d2r = PI / 180.0, r2d = 180.0 / PI;
@@ -31,8 +38,16 @@ void GPSService::update() {
     _fix.speedKmph = _gps.speed.isValid() ? _gps.speed.kmph() : 0;
     _fix.courseDeg = _gps.course.isValid() ? _gps.course.deg() : 0;
     computeHeading();
+    updateBestFit();
   }
 }
+void GPSService::updateBestFit() {
+  _history.push_back(_fix);
+  if (_history.size() > 8) _history.pop_front();
+  std::vector<GpsFix> v(_history.begin(), _history.end());
+  _bestFit = computeBestFitFix(v, 0.02);
+}
+
 void GPSService::computeHeading() {
   if (!_fix.valid || !_prev.valid) { _headingReliable=false; return; }
   if (_fix.speedKmph < 2.0) { _headingReliable=false; return; }
@@ -63,7 +78,7 @@ std::vector<RadioSignal> NetworkService::scanWifi() {
 
 bool CacheService::begin() { ensureLayout(); return true; }
 void CacheService::ensureLayout() {
-  const char* dirs[] = {"/apps","/cache","/cache/maps","/cache/weather","/cache/http","/documents","/documents/markdown","/documents/text","/webroot","/games","/gps","/gps/tracks","/gps/fixes","/meshtastic","/meshtastic/messages","/meshtastic/nodes","/radio","/radio/scans","/config","/logs"};
+  const char* dirs[] = {"/apps","/cache","/cache/maps","/cache/weather","/cache/http","/documents","/documents/markdown","/documents/text","/webroot","/games","/gps","/gps/tracks","/gps/fixes","/meshtastic","/meshtastic/messages","/meshtastic/nodes","/meshtastic/config","/radio","/radio/scans","/config","/logs"};
   for (auto d: dirs) if (!SD.exists(d)) SD.mkdir(d);
 }
 String CacheService::mapTilePath(const String& provider, int z, int x, int y) const { return "/cache/maps/"+provider+"/"+String(z)+"/"+String(x)+"/"+String(y)+".tile"; }
@@ -71,6 +86,11 @@ bool CacheService::hasFile(const String& path) const { return SD.exists(path); }
 bool CacheService::writeText(const String& path, const String& text) { File f=SD.open(path, FILE_WRITE); if(!f)return false; f.print(text); f.close(); return true; }
 String CacheService::readText(const String& path, size_t maxLen) { File f=SD.open(path, FILE_READ); if(!f)return ""; String s; while(f.available() && s.length()<maxLen) s+=(char)f.read(); f.close(); return s; }
 void CacheService::appendLog(const String& name, const String& line) { File f=SD.open("/logs/"+name, FILE_APPEND); if(f){ f.println(line); f.close(); } }
+void CacheService::recordMapCacheLookup(bool hit) {
+  if (hit) _mapCacheHits++;
+  else _mapCacheMisses++;
+  appendLog("map_cache.log", String(hit ? "hit" : "miss") + ",hits=" + String(_mapCacheHits) + ",misses=" + String(_mapCacheMisses));
+}
 
 bool RadioService::begin() {
   static Module mod(BoardConfig::PIN_LORA_NSS, BoardConfig::PIN_LORA_DIO1, BoardConfig::PIN_LORA_RST, BoardConfig::PIN_LORA_BUSY);
@@ -88,7 +108,17 @@ std::vector<RadioSignal> RadioService::scanBLE(uint32_t ms) {
   NimBLEScanResults res = scan->start(ms/1000, false);
   for (int i=0;i<res.getCount();i++) {
     auto d = res.getDevice(i);
-    RadioSignal s; s.kind="BLE"; s.name=d.getName().c_str(); s.address=d.getAddress().toString().c_str(); s.rssi=d.getRSSI(); s.protocol="BLE advertisement"; s.lastSeenMs=millis(); out.push_back(s);
+    int svcCount = d.getServiceUUIDCount();
+    int mfgLen = d.haveManufacturerData() ? d.getManufacturerData().length() : 0;
+    RadioSignal s;
+    s.kind="BLE";
+    s.name=d.getName().c_str();
+    s.address=d.getAddress().toString().c_str();
+    s.rssi=d.getRSSI();
+    s.protocol=buildBleAdvertSummary(s.name, s.rssi, svcCount, mfgLen);
+    s.extra = d.toString().c_str();
+    s.lastSeenMs=millis();
+    out.push_back(s);
   }
   scan->clearResults();
   return out;
@@ -109,17 +139,61 @@ std::vector<RadioSignal> RadioService::scanLoRaWindow(uint32_t ms) {
 }
 
 bool WebServerService::begin() { return true; }
+void WebServerService::attachContext(BoardHAL* board, GPSService* gps, NetworkService* net, CacheService* cache) { _board = board; _gps = gps; _net = net; _cache = cache; }
 void WebServerService::start() {
   if (_running) return;
+  _server.on("/api/health", [this](){ _server.send(200, "application/json", "{"ok":true,"service":"web"}"); });  _server.on("/api/status", [this](){
+    if (!_board || !_gps || !_net) { _server.send(503, "application/json", "{"error":"status context unavailable"}"); return; }
+    String body = buildStatusApiJson(_net->status(), _gps->fix(), _board->battery(), _board->sdMounted(), _running);
+    _server.send(200, "application/json", body);
+  });
+  _server.on("/api/cache/stats", [this](){
+    if (!_cache) { _server.send(503, "application/json", "{"error":"cache context unavailable"}"); return; }
+    _server.send(200, "application/json", buildCacheStatsJson(_cache->mapCacheHitCount(), _cache->mapCacheMissCount()));
+  });
+  _server.on("/api/meshtastic/stats", [this](){
+    size_t msgCount = 0, nodeCount = 0;
+    File msgDir = SD.open("/meshtastic/messages");
+    if (msgDir) { File f = msgDir.openNextFile(); while (f) { msgCount++; f = msgDir.openNextFile(); } msgDir.close(); }
+    File nodeDir = SD.open("/meshtastic/nodes");
+    if (nodeDir) { File f = nodeDir.openNextFile(); while (f) { nodeCount++; f = nodeDir.openNextFile(); } nodeDir.close(); }
+    _server.send(200, "application/json", buildMeshtasticStatsJson(msgCount, nodeCount));
+  });
+  _server.on("/api/radio/scans", [this](){
+    File dir = SD.open("/radio/scans");
+    if (!dir) { _server.send(404, "application/json", "{"error":"missing /radio/scans"}"); return; }
+    std::vector<String> names;
+    File f = dir.openNextFile();
+    while (f && names.size() < 64) { names.push_back(String(f.name())); f = dir.openNextFile(); }
+    dir.close();
+    _server.send(200, "application/json", buildRadioScanListJson(names));
+  });
+  _server.on("/api/weather/cache", [this](){
+    if (!SD.exists("/cache/weather/current.json")) { _server.send(404, "application/json", "{"error":"missing /cache/weather/current.json"}"); return; }
+    File f = SD.open("/cache/weather/current.json", FILE_READ);
+    if (!f) { _server.send(500, "application/json", "{"error":"failed to read weather cache"}"); return; }
+    String body; while (f.available()) body += (char)f.read(); f.close();
+    _server.send(200, "application/json", body);
+  });
+  _server.on("/api/apps/order", [this](){
+    if (!SD.exists("/config/apps.json")) { _server.send(404, "application/json", "{"error":"missing /config/apps.json"}"); return; }
+    File f = SD.open("/config/apps.json", FILE_READ);
+    if (!f) { _server.send(500, "application/json", "{"error":"failed to read /config/apps.json"}"); return; }
+    String body;
+    while (f.available()) body += (char)f.read();
+    f.close();
+    _server.send(200, "application/json", body);
+  });
   _server.onNotFound([this](){ servePath(_server.uri()); });
   _server.begin(); _running=true;
 }
 void WebServerService::stop() { _server.stop(); _running=false; }
 void WebServerService::update() { if(_running) _server.handleClient(); }
 void WebServerService::servePath(const String& uri) {
-  String path = "/webroot" + (uri == "/" ? "/index.html" : uri);
+  if(!isSafeWebUri(uri)) { _server.send(400, "text/plain", "Invalid URI"); return; }
+  String path = mapUriToWebrootPath(uri);
   if(!SD.exists(path)) { _server.send(404, "text/plain", "Not found"); return; }
   File f=SD.open(path, FILE_READ);
-  _server.streamFile(f, "text/plain");
+  _server.streamFile(f, mimeTypeForPath(path));
   f.close();
 }

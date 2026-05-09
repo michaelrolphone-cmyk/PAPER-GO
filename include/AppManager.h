@@ -3,6 +3,7 @@
 #include <vector>
 #include "App.h"
 #include "SystemServices.h"
+#include "NavLogic.h"
 
 class AppManager {
 public:
@@ -16,5 +17,6 @@ private:
   std::vector<App*> _apps;
   App* _active=nullptr;
   uint32_t _lastRender=0;
+  NavigationStack _nav;
   App* find(const String& id);
 };

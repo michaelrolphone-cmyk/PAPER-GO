@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <vector>
+#include <deque>
 #include <WebServer.h>
 #include <TinyGPSPlus.h>
 #include <RadioLib.h>
@@ -13,6 +14,7 @@ public:
   bool begin();
   void update();
   GpsFix fix() const { return _fix; }
+  GpsFix bestFit() const { return _bestFit; }
   double computedHeadingDeg() const { return _heading; }
   bool headingReliable() const { return _headingReliable; }
 private:
@@ -22,7 +24,10 @@ private:
   GpsFix _prev;
   double _heading = 0;
   bool _headingReliable = false;
+  std::deque<GpsFix> _history;
+  GpsFix _bestFit;
   void computeHeading();
+  void updateBestFit();
 };
 
 class NetworkService {
@@ -46,6 +51,9 @@ public:
   bool writeText(const String& path, const String& text);
   String readText(const String& path, size_t maxLen=32768);
   void appendLog(const String& name, const String& line);
+  void recordMapCacheLookup(bool hit);
+  uint32_t mapCacheHitCount() const { return _mapCacheHits; }
+  uint32_t mapCacheMissCount() const { return _mapCacheMisses; }
 };
 
 class RadioService {
@@ -64,8 +72,13 @@ public:
   void start();
   void stop();
   bool running() const { return _running; }
+  void attachContext(BoardHAL* board, GPSService* gps, NetworkService* net, CacheService* cache);
 private:
   WebServer _server{80};
   bool _running=false;
+  BoardHAL* _board = nullptr;
+  GPSService* _gps = nullptr;
+  NetworkService* _net = nullptr;
+  CacheService* _cache = nullptr;
   void servePath(const String& path);
 };
