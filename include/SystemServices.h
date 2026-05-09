@@ -20,5 +20,6 @@ public:
   WebServerService* web = nullptr;
   String activeAppId;
   bool requestHome = false;
+  bool requestBack = false;
   String requestOpenApp;
 };

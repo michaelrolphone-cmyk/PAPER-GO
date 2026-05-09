@@ -40,6 +40,7 @@ void setup() {
   gps.begin();
   net.begin();
   radio.begin();
+  web.attachContext(&board, &gps, &net, &cache);
   web.begin();
 
   apps.add(&springboard);

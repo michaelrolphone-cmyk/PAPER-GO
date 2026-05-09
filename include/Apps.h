@@ -4,6 +4,7 @@
 #include "BoardConfig.h"
 #include "Services.h"
 #include <vector>
+#include <vector>
 
 class SimpleListApp : public App {
 protected:
@@ -15,14 +16,21 @@ class SpringboardApp : public App {
 public:
   const char* id() const override { return "springboard"; }
   const char* title() const override { return "Apps"; }
+  void onStart(SystemServices& s) override;
   void render(SystemServices& s) override;
   void handleTouch(SystemServices& s, const TouchEvent& ev) override;
+private:
+  std::vector<String> _orderedIds;
 };
 class LockScreenApp : public App {
 public:
   const char* id() const override { return "lock"; }
   const char* title() const override { return "Lock"; }
+  void onStart(SystemServices& s) override;
   void render(SystemServices& s) override;
+private:
+  String _status;
+  String _preview;
 };
 class GpsMapApp : public App {
 public:
@@ -49,7 +57,11 @@ class UrlFetcherApp : public SimpleListApp {
 public:
   const char* id() const override { return "url"; }
   const char* title() const override { return "URL Fetcher"; }
+  void onStart(SystemServices& s) override;
   void render(SystemServices& s) override;
+private:
+  String _status;
+  String _preview;
 };
 class MarkdownReaderApp : public SimpleListApp {
 public:
