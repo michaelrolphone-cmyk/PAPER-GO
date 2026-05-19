@@ -163,6 +163,15 @@ Example command:
 curl http://<device-ip>/api/health
 ```
 
+## Settings app controls
+
+- Open **Settings** from the springboard to view live values loaded from `/config/wifi.json` and `/config/power.json`.
+- Tap a settings row once to select it.
+- Tap the same selected power row again:
+  - left half of screen decreases/cycles value
+  - right half of screen increases/cycles value
+- Editable rows persist to `/config/power.json` immediately (`lockTimeoutMs`, `deepSleepTimeoutMs`, `allowDeepSleep`, `deepSleepDurationSec`).
+
 ## Power management behavior
 
 Power policy is enforced by the app manager and can be overridden with `/config/power.json` on SD.
