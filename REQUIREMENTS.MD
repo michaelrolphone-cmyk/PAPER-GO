@@ -1235,7 +1235,7 @@ This should be treated as a miniature e-paper field computer OS, with the spring
 - [x] Lightweight onboard HTTP server serves static content from `/webroot` with MIME detection.
 - [x] URI path traversal rejection (`..` and backslash) for static content requests.
 - [x] JSON health endpoint implemented (`GET /api/health`).
-- [ ] Full remote app management API (install/remove/update apps).
+- [x] Full remote app management API (install/remove/update apps).
 
 - [x] Offline map behavior exposes cached/partial/uncached view state.
 - [x] Cache lookup hit/miss tracking implemented for map tile checks.

@@ -15,6 +15,9 @@ void test_openapi_contains_required_paths() {
   TEST_ASSERT_TRUE(spec.find("/api/health") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/status") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/apps/order") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/apps/install") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/apps/remove") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/apps/update") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/weather/cache") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/cache/stats") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/radio/scans") != std::string::npos);

@@ -10,6 +10,7 @@
 #include "CacheApiLogic.h"
 #include "RadioApiLogic.h"
 #include "MeshtasticApiLogic.h"
+#include "AppManagementApiLogic.h"
 
 static double bearingDeg(double lat1, double lon1, double lat2, double lon2) {
   const double d2r = PI / 180.0, r2d = 180.0 / PI;
@@ -106,18 +107,20 @@ std::vector<RadioSignal> RadioService::scanBLE(uint32_t ms) {
   NimBLEDevice::init("");
   NimBLEScan* scan = NimBLEDevice::getScan();
   scan->setActiveScan(false);
-  NimBLEScanResults res = scan->start(ms/1000, false);
+  scan->start(ms/1000, false);
+  NimBLEScanResults res = scan->getResults();
   for (int i=0;i<res.getCount();i++) {
     auto d = res.getDevice(i);
-    int svcCount = d.getServiceUUIDCount();
-    int mfgLen = d.haveManufacturerData() ? d.getManufacturerData().length() : 0;
+    if (!d) continue;
+    int svcCount = d->getServiceUUIDCount();
+    int mfgLen = d->haveManufacturerData() ? d->getManufacturerData().length() : 0;
     RadioSignal s;
     s.kind="BLE";
-    s.name=d.getName().c_str();
-    s.address=d.getAddress().toString().c_str();
-    s.rssi=d.getRSSI();
+    s.name=d->getName().c_str();
+    s.address=d->getAddress().toString().c_str();
+    s.rssi=d->getRSSI();
     s.protocol=buildBleAdvertSummary(s.name, s.rssi, svcCount, mfgLen);
-    s.extra = d.toString().c_str();
+    s.extra = d->toString().c_str();
     s.lastSeenMs=millis();
     out.push_back(s);
   }
@@ -143,8 +146,9 @@ bool WebServerService::begin() { return true; }
 void WebServerService::attachContext(BoardHAL* board, GPSService* gps, NetworkService* net, CacheService* cache) { _board = board; _gps = gps; _net = net; _cache = cache; }
 void WebServerService::start() {
   if (_running) return;
-  _server.on("/api/health", [this](){ _server.send(200, "application/json", "{"ok":true,"service":"web"}"); });  _server.on("/api/status", [this](){
-    if (!_board || !_gps || !_net) { _server.send(503, "application/json", "{"error":"status context unavailable"}"); return; }
+  _server.on("/api/health", [this](){ _server.send(200, "application/json", "{\"ok\":true,\"service\":\"web\"}"); });
+  _server.on("/api/status", [this](){
+    if (!_board || !_gps || !_net) { _server.send(503, "application/json", "{\"error\":\"status context unavailable\"}"); return; }
     size_t msgCount = 0;
     File msgDir = SD.open("/meshtastic/messages");
     if (msgDir) { File f = msgDir.openNextFile(); while (f) { msgCount++; f = msgDir.openNextFile(); } msgDir.close(); }
@@ -154,7 +158,7 @@ void WebServerService::start() {
     _server.send(200, "application/json", body);
   });
   _server.on("/api/cache/stats", [this](){
-    if (!_cache) { _server.send(503, "application/json", "{"error":"cache context unavailable"}"); return; }
+    if (!_cache) { _server.send(503, "application/json", "{\"error\":\"cache context unavailable\"}"); return; }
     _server.send(200, "application/json", buildCacheStatsJson(_cache->mapCacheHitCount(), _cache->mapCacheMissCount()));
   });
   _server.on("/api/meshtastic/stats", [this](){
@@ -167,7 +171,7 @@ void WebServerService::start() {
   });
   _server.on("/api/radio/scans", [this](){
     File dir = SD.open("/radio/scans");
-    if (!dir) { _server.send(404, "application/json", "{"error":"missing /radio/scans"}"); return; }
+    if (!dir) { _server.send(404, "application/json", "{\"error\":\"missing /radio/scans\"}"); return; }
     std::vector<String> names;
     File f = dir.openNextFile();
     while (f && names.size() < 64) { names.push_back(String(f.name())); f = dir.openNextFile(); }
@@ -175,20 +179,75 @@ void WebServerService::start() {
     _server.send(200, "application/json", buildRadioScanListJson(names));
   });
   _server.on("/api/weather/cache", [this](){
-    if (!SD.exists("/cache/weather/current.json")) { _server.send(404, "application/json", "{"error":"missing /cache/weather/current.json"}"); return; }
+    if (!SD.exists("/cache/weather/current.json")) { _server.send(404, "application/json", "{\"error\":\"missing /cache/weather/current.json\"}"); return; }
     File f = SD.open("/cache/weather/current.json", FILE_READ);
-    if (!f) { _server.send(500, "application/json", "{"error":"failed to read weather cache"}"); return; }
+    if (!f) { _server.send(500, "application/json", "{\"error\":\"failed to read weather cache\"}"); return; }
     String body; while (f.available()) body += (char)f.read(); f.close();
     _server.send(200, "application/json", body);
   });
   _server.on("/api/apps/order", [this](){
-    if (!SD.exists("/config/apps.json")) { _server.send(404, "application/json", "{"error":"missing /config/apps.json"}"); return; }
+    if (!SD.exists("/config/apps.json")) { _server.send(404, "application/json", "{\"error\":\"missing /config/apps.json\"}"); return; }
     File f = SD.open("/config/apps.json", FILE_READ);
-    if (!f) { _server.send(500, "application/json", "{"error":"failed to read /config/apps.json"}"); return; }
+    if (!f) { _server.send(500, "application/json", "{\"error\":\"failed to read /config/apps.json\"}"); return; }
     String body;
     while (f.available()) body += (char)f.read();
     f.close();
     _server.send(200, "application/json", body);
+  });
+  _server.on("/api/apps/install", HTTP_POST, [this](){
+    AppManagementRequest req;
+    if (!parseAppManagementRequest(_server.arg("plain"), req)) {
+      _server.send(400, "application/json", buildAppManagementResultJson("install", "", false, "invalid request"));
+      return;
+    }
+    const String manifestPath = "/apps/" + req.id + ".json";
+    String manifest = "{\"id\":\"" + req.id + "\",\"sourceUrl\":\"" + req.sourceUrl + "\",\"version\":\"" + req.version + "\"}";
+    File f = SD.open(manifestPath, FILE_WRITE);
+    if (!f) {
+      _server.send(500, "application/json", buildAppManagementResultJson("install", req.id, false, "failed to write app manifest"));
+      return;
+    }
+    f.print(manifest);
+    f.close();
+    _server.send(200, "application/json", buildAppManagementResultJson("install", req.id, true, "installed"));
+  });
+  _server.on("/api/apps/remove", HTTP_POST, [this](){
+    AppManagementRequest req;
+    if (!parseAppManagementRequest(_server.arg("plain"), req)) {
+      _server.send(400, "application/json", buildAppManagementResultJson("remove", "", false, "invalid request"));
+      return;
+    }
+    const String manifestPath = "/apps/" + req.id + ".json";
+    if (!SD.exists(manifestPath)) {
+      _server.send(404, "application/json", buildAppManagementResultJson("remove", req.id, false, "app not installed"));
+      return;
+    }
+    if (!SD.remove(manifestPath)) {
+      _server.send(500, "application/json", buildAppManagementResultJson("remove", req.id, false, "failed to remove app"));
+      return;
+    }
+    _server.send(200, "application/json", buildAppManagementResultJson("remove", req.id, true, "removed"));
+  });
+  _server.on("/api/apps/update", HTTP_POST, [this](){
+    AppManagementRequest req;
+    if (!parseAppManagementRequest(_server.arg("plain"), req)) {
+      _server.send(400, "application/json", buildAppManagementResultJson("update", "", false, "invalid request"));
+      return;
+    }
+    const String manifestPath = "/apps/" + req.id + ".json";
+    if (!SD.exists(manifestPath)) {
+      _server.send(404, "application/json", buildAppManagementResultJson("update", req.id, false, "app not installed"));
+      return;
+    }
+    String manifest = "{\"id\":\"" + req.id + "\",\"sourceUrl\":\"" + req.sourceUrl + "\",\"version\":\"" + req.version + "\"}";
+    File f = SD.open(manifestPath, FILE_WRITE);
+    if (!f) {
+      _server.send(500, "application/json", buildAppManagementResultJson("update", req.id, false, "failed to update app"));
+      return;
+    }
+    f.print(manifest);
+    f.close();
+    _server.send(200, "application/json", buildAppManagementResultJson("update", req.id, true, "updated"));
   });
   _server.onNotFound([this](){ servePath(_server.uri()); });
   _server.begin(); _running=true;

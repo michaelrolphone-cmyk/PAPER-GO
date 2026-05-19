@@ -103,6 +103,9 @@ When Web Server app is running, these HTTP endpoints are available:
 
 - `GET /api/health` → health JSON for web service.
 - `GET /api/apps/order` → returns `/config/apps.json` contents if present.
+- `POST /api/apps/install` → installs app manifest to `/apps/<id>.json` (`id` required; optional `sourceUrl`, `version`).
+- `POST /api/apps/remove` → removes installed app manifest from `/apps/<id>.json`.
+- `POST /api/apps/update` → updates existing app manifest in `/apps/<id>.json`.
 - `GET /api/status` → current device snapshot (wifi/ip/gps/battery/sd/web flags plus `unreadMessages` and `cacheActivity` indicators).
   - `unreadMessages` is `true` when one or more files are present in `/meshtastic/messages`.
   - `cacheActivity` is `true` when map-cache lookups occurred within the last 5 minutes.

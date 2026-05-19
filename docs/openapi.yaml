@@ -26,6 +26,30 @@ paths:
           description: App order config
         '404':
           description: Missing config
+  /api/apps/install:
+    post:
+      summary: Install an app manifest to SD storage
+      responses:
+        '200':
+          description: Installed
+        '400':
+          description: Invalid request
+  /api/apps/remove:
+    post:
+      summary: Remove an installed app manifest from SD storage
+      responses:
+        '200':
+          description: Removed
+        '404':
+          description: App not installed
+  /api/apps/update:
+    post:
+      summary: Update an installed app manifest on SD storage
+      responses:
+        '200':
+          description: Updated
+        '404':
+          description: App not installed
 
   /api/weather/cache:
     get:
