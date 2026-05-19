@@ -71,6 +71,18 @@ pio device monitor
 
 This repository includes a root `PAPER_GO.ino` sketch entry and root-level header shims so Arduino IDE can resolve headers that are stored under `include/`.
 
+### Boot diagnostics serial output
+
+Use monitor to verify boot-step state transitions from firmware:
+
+```bash
+pio device monitor --baud 115200
+```
+
+Expected boot log prefixes:
+- `[BOOT]` for one-time initialization results (board/cache/gps/net/radio/web).
+- `[NET]` for periodic connection-state snapshots (`wifi`, `ssid`, `ip`).
+
 ## Notes
 
 - `BoardHAL::drawText()` currently writes to Serial and can be wired to the real e-paper renderer.
@@ -96,6 +108,23 @@ Set app ordering in `/config/apps.json`:
 ```
 
 Unknown app IDs are ignored, duplicates are removed, and missing apps are appended automatically.
+
+
+## Wi-Fi configuration
+
+Create `/config/wifi.json` on SD to enable automatic station connection at boot:
+
+```json
+{
+  "ssid": "YourNetwork",
+  "password": "YourPassword"
+}
+```
+
+Behavior:
+- Boot: `NetworkService::begin()` loads `/config/wifi.json` and starts `WiFi.begin(ssid,password)` when valid config exists.
+- Manual connect path: `NetworkService::connect(ssid, pass)` updates the same file for persistence.
+- Forget network: `NetworkService::forgetSaved()` clears stored credentials in `/config/wifi.json`.
 
 ## Web server API
 

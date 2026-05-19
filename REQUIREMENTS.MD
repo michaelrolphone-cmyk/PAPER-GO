@@ -1232,6 +1232,11 @@ This should be treated as a miniature e-paper field computer OS, with the spring
 - [x] Status bar redraw cache is scoped to each `AppManager` instance (no function-static cross-instance state).
 - [x] Board pin mapping aligned to T5-4.7-S3 Pro for display timing/I2C/SD/LoRa/GPS with display control on IO48.
 
+- [x] Display rendering primitives now clamp grayscale values to 0-15 and clip draw rectangles to the 960x540 panel bounds.
+- [x] Display line primitives are clipped to screen bounds before rendering to prevent off-panel refresh work.
+- [x] AppManager forces a periodic full e-paper refresh after bounded partial refresh cycles to reduce ghosting.
+- [x] Periodic refresh loop now skips frame submission when status/app state is unchanged, reducing unnecessary e-paper refreshes.
+
 
 ### 19.4 Implementation Checklist
 
@@ -1284,3 +1289,7 @@ This should be treated as a miniature e-paper field computer OS, with the spring
 - [x] Web API exposes radio scan log listing endpoint (`/api/radio/scans`).
 
 - [x] Web API exposes Meshtastic storage counters endpoint (`/api/meshtastic/stats`).
+
+- [x] Wi-Fi station boot-connect now loads persisted credentials from `/config/wifi.json` and supports save/forget flows in `NetworkService`.
+
+- [x] Boot serial diagnostics now report board/cache/gps/network/radio/web init results plus periodic Wi-Fi state snapshots.

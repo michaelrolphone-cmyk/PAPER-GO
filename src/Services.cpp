@@ -11,6 +11,7 @@
 #include "RadioApiLogic.h"
 #include "MeshtasticApiLogic.h"
 #include "AppManagementApiLogic.h"
+#include "WifiConfigLogic.h"
 
 static double bearingDeg(double lat1, double lon1, double lat2, double lon2) {
   const double d2r = PI / 180.0, r2d = 180.0 / PI;
@@ -58,14 +59,37 @@ void GPSService::computeHeading() {
   _headingReliable = true;
 }
 
-bool NetworkService::begin() { WiFi.mode(WIFI_STA); return true; }
+bool NetworkService::begin() {
+  WiFi.mode(WIFI_STA);
+  return connectSaved();
+}
+void NetworkService::attachCache(CacheService* cache) { _cache = cache; }
 void NetworkService::update() {
   _status.wifi = WiFi.status() == WL_CONNECTED;
   _status.ssid = WiFi.SSID();
   _status.ip = WiFi.localIP();
 }
-bool NetworkService::connectSaved() { WiFi.begin(); return true; }
-bool NetworkService::connect(const String& ssid, const String& pass) { WiFi.begin(ssid.c_str(), pass.c_str()); return true; }
+bool NetworkService::connectSaved() {
+  if (!_cache) { WiFi.begin(); return true; }
+  String raw = _cache->readText("/config/wifi.json", 1024);
+  WifiConfig cfg = parseWifiConfig(raw);
+  if (!cfg.valid) return false;
+  WiFi.begin(cfg.ssid.c_str(), cfg.password.c_str());
+  return true;
+}
+bool NetworkService::connect(const String& ssid, const String& pass) {
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  return saveCredentials(ssid, pass);
+}
+bool NetworkService::disconnect() { WiFi.disconnect(); return true; }
+bool NetworkService::forgetSaved() {
+  if (!_cache) return false;
+  return _cache->writeText("/config/wifi.json", "{}");
+}
+bool NetworkService::saveCredentials(const String& ssid, const String& pass) {
+  if (!_cache) return false;
+  return _cache->writeText("/config/wifi.json", buildWifiConfigJson(ssid, pass));
+}
 NetStatus NetworkService::status() const { return _status; }
 std::vector<RadioSignal> NetworkService::scanWifi() {
   std::vector<RadioSignal> out;

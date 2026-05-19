@@ -3,6 +3,22 @@
 #include "Services.h"
 #include "StatusLogic.h"
 #include "StatusBarRenderLogic.h"
+#include "DisplayRefreshLogic.h"
+
+static StatusBarSnapshot captureStatusSnapshot(SystemServices& s, App* active) {
+  BatteryStatus b=s.board->battery();
+  NetStatus n=s.net->status();
+  GpsFix g=s.gps->fix();
+  StatusBarSnapshot snapshot;
+  snapshot.wifi = n.wifi;
+  snapshot.sdMounted = s.board->sdMounted();
+  snapshot.batteryPercent = b.percent;
+  snapshot.charging = b.charging;
+  snapshot.gpsState = deriveGpsStatus(g, 15000, true);
+  snapshot.timeSource = resolveTimeSource({false, g.valid, n.wifi, false});
+  snapshot.activeTitle = active ? active->title() : "";
+  return snapshot;
+}
 
 void AppManager::add(App* app) { _apps.push_back(app); }
 App* AppManager::find(const String& id) { for(auto* a:_apps) if(id == a->id()) return a; return nullptr; }
@@ -25,27 +41,27 @@ void AppManager::update(SystemServices& s) {
   if(s.requestHome) { s.requestHome=false; _nav.clear(); open(s,"springboard"); return; }
   if(s.requestBack) { s.requestBack=false; String backId = _nav.popBackTarget(); if(backId.length()) open(s, backId); else open(s,"springboard"); return; }
   if(s.requestOpenApp.length()) { String id=s.requestOpenApp; s.requestOpenApp=""; open(s,id); return; }
-  if(now - _lastRender > 5000) render(s, false);
+  if(now - _lastRender > 5000) {
+    bool forceFull = shouldForceFullRefresh(_refreshState, 12);
+    StatusBarSnapshot snapshot = captureStatusSnapshot(s, _active);
+    bool statusChanged = shouldRenderStatusBar(_havePreviousStatusBar ? &_previousStatusBar : nullptr, snapshot);
+    RenderDecisionInput decision{forceFull, statusChanged, false};
+    if (shouldRenderFrame(decision)) render(s, false);
+  }
 }
 void AppManager::render(SystemServices& s, bool full) {
   if(!_active) return;
   _lastRender=millis();
+  bool fullRefresh = full || shouldForceFullRefresh(_refreshState, 12);
   s.board->beginFrame();
   BatteryStatus b=s.board->battery();
   NetStatus n=s.net->status();
   GpsFix g=s.gps->fix();
   GpsStatusState gpsState = deriveGpsStatus(g, 15000, true);
   TimeSource timeSource = resolveTimeSource({false, g.valid, n.wifi, false});
-  StatusBarSnapshot snapshot;
-  snapshot.wifi = n.wifi;
-  snapshot.sdMounted = s.board->sdMounted();
-  snapshot.batteryPercent = b.percent;
-  snapshot.charging = b.charging;
-  snapshot.gpsState = gpsState;
-  snapshot.timeSource = timeSource;
-  snapshot.activeTitle = _active->title();
+  StatusBarSnapshot snapshot = captureStatusSnapshot(s, _active);
 
-  bool renderBar = full || shouldRenderStatusBar(_havePreviousStatusBar ? &_previousStatusBar : nullptr, snapshot);
+  bool renderBar = fullRefresh || shouldRenderStatusBar(_havePreviousStatusBar ? &_previousStatusBar : nullptr, snapshot);
   if (renderBar) {
     s.board->fillRect(0,0,BoardConfig::SCREEN_W,BoardConfig::STATUS_BAR_H,14);
     s.board->drawText(8,10,"T5 Field OS",0,1);
@@ -60,5 +76,7 @@ void AppManager::render(SystemServices& s, bool full) {
     _havePreviousStatusBar = true;
   }
   _active->render(s);
-  s.board->endFrame(full);
+  s.board->endFrame(fullRefresh);
+  recordDisplayRefresh(_refreshState, fullRefresh);
 }
+
