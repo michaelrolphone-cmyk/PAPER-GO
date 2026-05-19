@@ -191,6 +191,15 @@ Two-point touch is integrated with the touch classifier and emits `PinchIn`/`Pin
 
 Global gestures: swipe-down returns to springboard (Home), swipe-right returns to previous app (Back stack).
 
+## Hardware buttons
+
+- **Home button**: sends the UI to the Springboard from any app.
+- **Home button while already on Springboard**: jumps to the first Springboard page; if already on page 1 it does nothing.
+- **IO48 backlight control line**: used by `BoardHAL` lowlight/backlight control and lock-screen tap toggling.
+- **PWR button**:
+  - From normal operation: enters low-power lock-screen mode.
+  - From lock-screen mode: returns to normal online operation and attempts Wi-Fi reconnect from saved credentials.
+
 Springboard launcher gestures:
 - Swipe left/right to move between app pages when there are more than 15 apps.
 - Long-press an app tile to open app options, then tap "Move to Front" to pin it to the first slot.

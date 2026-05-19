@@ -39,6 +39,14 @@ bool shouldDisableWifiForLowPower(bool lockScreenActive, bool charging) {
   return lockScreenActive && !charging;
 }
 
+bool shouldPowerButtonEnterLowPower(const String& activeAppId) {
+  return activeAppId != "lock";
+}
+
+bool shouldPowerButtonReturnToOnline(const String& activeAppId) {
+  return activeAppId == "lock";
+}
+
 PowerConfig parsePowerConfig(const String& json) {
   PowerConfig cfg;
   uint32_t lockTimeoutMs = 0;

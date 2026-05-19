@@ -34,6 +34,15 @@ void test_wifi_disable_policy() {
   TEST_ASSERT_FALSE(shouldDisableWifiForLowPower(false, false));
 }
 
+void test_power_button_toggle_policy() {
+  TEST_ASSERT_TRUE(shouldPowerButtonEnterLowPower("springboard"));
+  TEST_ASSERT_TRUE(shouldPowerButtonEnterLowPower("gpsmap"));
+  TEST_ASSERT_FALSE(shouldPowerButtonEnterLowPower("lock"));
+
+  TEST_ASSERT_FALSE(shouldPowerButtonReturnToOnline("springboard"));
+  TEST_ASSERT_TRUE(shouldPowerButtonReturnToOnline("lock"));
+}
+
 void test_parse_power_config_valid_values() {
   PowerConfig cfg = parsePowerConfig("{\"lockTimeoutMs\":45000,\"deepSleepTimeoutMs\":180000,\"allowDeepSleep\":false,\"deepSleepDurationSec\":90}");
   TEST_ASSERT_TRUE(cfg.valid);
@@ -66,6 +75,7 @@ int main(int argc, char** argv) {
   RUN_TEST(test_enters_lock_screen_after_idle_timeout);
   RUN_TEST(test_enters_deep_sleep_only_from_lock_screen);
   RUN_TEST(test_wifi_disable_policy);
+  RUN_TEST(test_power_button_toggle_policy);
   RUN_TEST(test_parse_power_config_valid_values);
   RUN_TEST(test_parse_power_config_applies_clamps_and_defaults);
   RUN_TEST(test_parse_power_config_invalid_payload);

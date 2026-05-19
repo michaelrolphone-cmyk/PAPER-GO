@@ -41,6 +41,17 @@ void AppManager::update(SystemServices& s) {
   if(!_active) return;
   uint32_t now=millis();
   _active->update(s, now);
+  if (s.board->pollPowerButtonPressed()) {
+    _powerState.lastInteractionMs = now;
+    String activeId = String(_active->id());
+    if (shouldPowerButtonReturnToOnline(activeId)) {
+      if (!s.net->status().wifi) s.net->connectSaved();
+      s.requestHome = true;
+    } else if (shouldPowerButtonEnterLowPower(activeId)) {
+      open(s, "lock");
+      return;
+    }
+  }
   if (s.board->pollHomeButtonPressed()) {
     _powerState.lastInteractionMs = now;
     if (_active->handleHomeButton(s)) {
