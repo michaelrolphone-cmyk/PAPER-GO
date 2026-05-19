@@ -3,7 +3,6 @@
 #include "Services.h"
 #include "StatusLogic.h"
 #include "StatusBarRenderLogic.h"
-#include "DisplayRefreshLogic.h"
 
 static StatusBarSnapshot captureStatusSnapshot(SystemServices& s, App* active) {
   BatteryStatus b=s.board->battery();
