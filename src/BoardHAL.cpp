@@ -6,6 +6,10 @@
 #if __has_include(<epdiy.h>)
 #include <epdiy.h>
 #define PAPERGO_HAS_EPDIY 1
+#elif __has_include(<epd_driver.h>) && __has_include(<epd_highlevel.h>)
+#include <epd_driver.h>
+#include <epd_highlevel.h>
+#define PAPERGO_HAS_EPDIY 1
 #else
 #define PAPERGO_HAS_EPDIY 0
 #endif
@@ -56,7 +60,7 @@ bool BoardHAL::begin() {
   g_displayReady = true;
   Serial.println("EPD init: ok");
 #else
-  Serial.println("EPD init: skipped (epdiy.h unavailable)");
+  Serial.println("EPD init: skipped (no compatible epdiy headers found)");
 #endif
   Serial.println("T5 Field OS HAL online");
   return true;
