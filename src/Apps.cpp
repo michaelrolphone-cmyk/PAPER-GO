@@ -15,6 +15,9 @@
 #include "LockScreenLogic.h"
 #include "MapTileLogic.h"
 #include "ScaffoldNoticeLogic.h"
+#include "SettingsLogic.h"
+#include "WifiConfigLogic.h"
+#include "PowerManagementLogic.h"
 
 void SimpleListApp::titleBar(SystemServices& s, const String& t) {
   s.board->fillRect(0, BoardConfig::STATUS_BAR_H, BoardConfig::SCREEN_W, 40, 14);
@@ -446,4 +449,61 @@ void WeatherApp::render(SystemServices& s) {
 void WebServerApp::render(SystemServices& s) { titleBar(s,"Web Server"); NetStatus ns=s.net->status(); s.board->drawText(20,110,String("Status: ")+(s.web->running()?"running":"stopped"),0,2); s.board->drawText(20,150,"IP: "+ns.ip.toString(),0,1); s.board->drawText(20,180,"Serving: /webroot",0,1); s.board->drawText(20,230,"Tap upper-left content area to toggle",5,1); }
 void WebServerApp::handleTouch(SystemServices& s, const TouchEvent& ev) { if(ev.type==TouchType::Tap){ if(s.web->running()) s.web->stop(); else s.web->start(); } }
 void GamesApp::render(SystemServices& s) { titleBar(s,"Games"); const char* g[]={"Chess","Go","Tic-Tac-Toe","Minesweeper"}; for(int i=0;i<4;i++){ int x=40+i*220; s.board->drawRect(x,140,180,140,0); s.board->drawText(x+20,200,g[i],0,2);} s.board->drawText(20,330,gamesAppNoticeText(),5,1); }
-void SettingsApp::render(SystemServices& s) { titleBar(s,"Settings"); int y=110; s.board->drawText(20,y,settingsAppNoticeText(),5,2); y+=34; s.board->drawText(20,y,"Planned sections: Wi-Fi, GPS, LoRa, Display, Cache, Power, About",0,1); y+=26; s.board->drawText(20,y,"Diagnostics screens are scaffold-only in this build.",0,1); }
+void SettingsApp::onStart(SystemServices& s) {
+  _state.selectedRow = 0;
+  loadFromConfig(s);
+}
+
+void SettingsApp::loadFromConfig(SystemServices& s) {
+  _state = SettingsViewState{};
+  if (!s.cache) return;
+  WifiConfig wifi = parseWifiConfig(s.cache->readText("/config/wifi.json", 1024));
+  if (wifi.valid) {
+    _state.hasWifiConfig = true;
+    _state.ssid = wifi.ssid;
+    _state.password = wifi.password;
+  }
+  PowerConfig p = parsePowerConfig(s.cache->readText("/config/power.json", 1024));
+  if (p.valid) {
+    _state.hasPowerConfig = true;
+    _state.power = p.policy;
+  }
+}
+
+void SettingsApp::savePowerConfig(SystemServices& s) {
+  if (!s.cache) return;
+  s.cache->writeText("/config/power.json", buildPowerConfigJson(_state.power));
+}
+
+void SettingsApp::render(SystemServices& s) {
+  titleBar(s,"Settings");
+  int y = 104;
+  s.board->drawText(20, y, "Tap row to select. Tap selected row again (left/right) to edit.", 0, 1); y += 28;
+  s.board->drawText(20, y, String(_state.hasWifiConfig ? "Wi-Fi: loaded" : "Wi-Fi: missing /config/wifi.json"), _state.hasWifiConfig ? 0 : 5, 1); y += 24;
+  s.board->drawText(20, y, "SSID: " + (_state.ssid.length() ? _state.ssid : String("(none)")), _state.selectedRow == 0 ? 2 : 0, 1); y += 24;
+  String masked = _state.password.length() ? String("********") : String("(empty)");
+  s.board->drawText(20, y, "Password: " + masked, _state.selectedRow == 1 ? 2 : 0, 1); y += 24;
+  s.board->drawText(20, y, "Lock timeout (ms): " + String(_state.power.lockTimeoutMs), _state.selectedRow == 2 ? 2 : 0, 1); y += 24;
+  s.board->drawText(20, y, "Deep sleep timeout (ms): " + String(_state.power.deepSleepTimeoutMs), _state.selectedRow == 3 ? 2 : 0, 1); y += 24;
+  s.board->drawText(20, y, String("Allow deep sleep: ") + (_state.power.allowDeepSleep ? "true" : "false"), _state.selectedRow == 4 ? 2 : 0, 1); y += 24;
+  s.board->drawText(20, y, "Deep sleep duration (s): " + String(_state.power.deepSleepDurationSec), _state.selectedRow == 5 ? 2 : 0, 1); y += 28;
+  s.board->drawText(20, y, "Changes to power settings are saved to /config/power.json", 0, 1);
+}
+
+void SettingsApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
+  if (ev.type != TouchType::Tap) return;
+  const int tappedRow = settingsRowFromTapY(ev.y, 156, 24, 6);
+  bool editSelected = settingsTapShouldEditSelectedRow(_state.selectedRow, tappedRow);
+  if (tappedRow >= 0) _state.selectedRow = tappedRow;
+  if (!editSelected) return;
+
+  bool changed = false;
+  bool increment = ev.x > (BoardConfig::SCREEN_W / 2);
+  if (_state.selectedRow == 2) { _state.power.lockTimeoutMs = cycleLockTimeoutMs(_state.power.lockTimeoutMs, increment); changed = true; }
+  else if (_state.selectedRow == 3) { _state.power.deepSleepTimeoutMs = cycleDeepSleepTimeoutMs(_state.power.deepSleepTimeoutMs, increment); changed = true; }
+  else if (_state.selectedRow == 4) { _state.power.allowDeepSleep = !_state.power.allowDeepSleep; changed = true; }
+  else if (_state.selectedRow == 5) { _state.power.deepSleepDurationSec = cycleDeepSleepDurationSec(_state.power.deepSleepDurationSec, increment); changed = true; }
+
+  if (_state.power.deepSleepTimeoutMs < _state.power.lockTimeoutMs) _state.power.deepSleepTimeoutMs = _state.power.lockTimeoutMs;
+  if (changed) savePowerConfig(s);
+}

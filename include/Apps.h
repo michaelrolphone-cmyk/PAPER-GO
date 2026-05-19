@@ -3,6 +3,7 @@
 #include "SystemServices.h"
 #include "BoardConfig.h"
 #include "Services.h"
+#include "SettingsLogic.h"
 #include <vector>
 #include <vector>
 
@@ -111,5 +112,11 @@ class SettingsApp : public SimpleListApp {
 public:
   const char* id() const override { return "settings"; }
   const char* title() const override { return "Settings"; }
+  void onStart(SystemServices& s) override;
   void render(SystemServices& s) override;
+  void handleTouch(SystemServices& s, const TouchEvent& ev) override;
+private:
+  SettingsViewState _state;
+  void loadFromConfig(SystemServices& s);
+  void savePowerConfig(SystemServices& s);
 };
