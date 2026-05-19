@@ -18,7 +18,7 @@ This is a separate handheld e-paper app launcher project. It is not the garden w
 - Radio scanner for Wi-Fi / BLE / LoRa scaffold
 - Meshtastic placeholder app with correct storage boundaries
 - SD-hosted web server scaffold
-- Games folder with Chess, Go, Tic-Tac-Toe, and Minesweeper placeholders
+- Games folder with Chess, Go, Tic-Tac-Toe, and Minesweeper entries plus playable core game logic modules for all four games (rules validation/state progression), with Tic-Tac-Toe and Chess save/resume serialization
 - Settings app
 - Board abstraction layer so hardware-specific display/touch/pin details stay isolated
 
