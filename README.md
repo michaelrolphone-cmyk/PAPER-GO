@@ -54,13 +54,22 @@ On first boot the firmware creates:
 
 ## Build
 
-Use PlatformIO:
+### PlatformIO
 
 ```bash
 pio run
 pio run -t upload
 pio device monitor
 ```
+
+### Arduino IDE (Arduino Studio)
+
+1. Open the `PAPER-GO` folder as a sketch in Arduino IDE.
+2. Select an ESP32-S3 board profile that matches the LILYGO T5 4.7 S3 Pro hardware.
+3. Install required board support and libraries from the ESP32 core/library manager as needed by your toolchain.
+4. Build/Upload from Arduino IDE.
+
+This repository includes a root `PAPER_GO.ino` sketch entry and root-level header shims so Arduino IDE can resolve headers that are stored under `include/`.
 
 ## Notes
 
