@@ -5,6 +5,10 @@ bool BoardHAL::begin() {
   Serial.begin(115200);
   delay(250);
   Wire.begin(BoardConfig::I2C_SDA, BoardConfig::I2C_SCL);
+  pinMode(BoardConfig::PIN_BACKLIGHT, OUTPUT);
+  _lowlight.enabled = false;
+  _lowlight.backlightOn = true;
+  applyBacklightState();
   beginSD();
   Serial.println("T5 Field OS HAL online");
   return true;
@@ -41,4 +45,23 @@ BatteryStatus BoardHAL::battery() {
 void BoardHAL::sleepSeconds(uint32_t seconds) {
   esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL);
   esp_deep_sleep_start();
+}
+
+void BoardHAL::setLowlightMode(bool enabled) {
+  _lowlight.enabled = enabled;
+  if (!enabled) _lowlight.backlightOn = true;
+  applyBacklightState();
+}
+
+void BoardHAL::toggleBacklight() {
+  toggleLowlightBacklight(_lowlight);
+  applyBacklightState();
+}
+
+void BoardHAL::applyBacklightState() {
+  digitalWrite(BoardConfig::PIN_BACKLIGHT, shouldBacklightBeOn(_lowlight) ? HIGH : LOW);
+  Serial.printf("[BACKLIGHT] lowlight=%s state=%s pin=%d\n",
+                _lowlight.enabled ? "on" : "off",
+                shouldBacklightBeOn(_lowlight) ? "on" : "off",
+                BoardConfig::PIN_BACKLIGHT);
 }

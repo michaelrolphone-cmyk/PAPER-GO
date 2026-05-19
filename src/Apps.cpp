@@ -67,6 +67,18 @@ void LockScreenApp::render(SystemServices& s) {
   s.board->drawText(40,500,"Tap/gesture to unlock",0,1);
 }
 
+void LockScreenApp::onStart(SystemServices& s) {
+  s.board->setLowlightMode(true);
+}
+
+void LockScreenApp::onStop(SystemServices& s) {
+  s.board->setLowlightMode(false);
+}
+
+void LockScreenApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
+  if (ev.type == TouchType::Tap) s.board->toggleBacklight();
+}
+
 void GpsMapApp::update(SystemServices& s, uint32_t now) { s.gps->update(); }
 void GpsMapApp::render(SystemServices& s) {
   titleBar(s, "GPS Map");
