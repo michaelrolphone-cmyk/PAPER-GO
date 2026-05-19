@@ -109,7 +109,14 @@ void CacheService::ensureLayout() {
 }
 String CacheService::mapTilePath(const String& provider, int z, int x, int y) const { return "/cache/maps/"+provider+"/"+String(z)+"/"+String(x)+"/"+String(y)+".tile"; }
 bool CacheService::hasFile(const String& path) const { return SD.exists(path); }
-bool CacheService::writeText(const String& path, const String& text) { File f=SD.open(path, FILE_WRITE); if(!f)return false; f.print(text); f.close(); return true; }
+bool CacheService::writeText(const String& path, const String& text) {
+  if (SD.exists(path)) SD.remove(path);
+  File f = SD.open(path, FILE_WRITE);
+  if (!f) return false;
+  size_t wrote = f.print(text);
+  f.close();
+  return wrote == text.length();
+}
 String CacheService::readText(const String& path, size_t maxLen) { File f=SD.open(path, FILE_READ); if(!f)return ""; String s; while(f.available() && s.length()<maxLen) s+=(char)f.read(); f.close(); return s; }
 void CacheService::appendLog(const String& name, const String& line) { File f=SD.open("/logs/"+name, FILE_APPEND); if(f){ f.println(line); f.close(); } }
 void CacheService::recordMapCacheLookup(bool hit) {
