@@ -6,12 +6,8 @@
 #if __has_include(<epdiy.h>)
 #include <epdiy.h>
 #define PAPERGO_HAS_EPDIY 1
-#elif __has_include(<epd_driver.h>) && __has_include(<epd_highlevel.h>)
-#include <epd_driver.h>
-#include <epd_highlevel.h>
-#define PAPERGO_HAS_EPDIY 1
 #else
-#define PAPERGO_HAS_EPDIY 0
+#error "epdiy.h not found. The paper display driver is not in the build."
 #endif
 
 namespace {
@@ -27,8 +23,8 @@ inline void setPixel4bpp(int x, int y, uint8_t gray) {
   if (!fb) return;
   const int idx = y * BoardConfig::SCREEN_W + x;
   const int byteIndex = idx >> 1;
-  if ((idx & 1) == 0) fb[byteIndex] = (fb[byteIndex] & 0x0F) | (gray << 4);
-  else fb[byteIndex] = (fb[byteIndex] & 0xF0) | (gray & 0x0F);
+  if ((idx & 1) == 0) fb[byteIndex] = (fb[byteIndex] & 0xF0) | (gray & 0x0F);
+  else fb[byteIndex] = (fb[byteIndex] & 0x0F) | (gray << 4);
 }
 #endif
 }
@@ -46,13 +42,13 @@ bool BoardHAL::begin() {
   if (BoardConfig::PIN_HOME_BUTTON >= 0) pinMode(BoardConfig::PIN_HOME_BUTTON, INPUT_PULLUP);
   if (BoardConfig::PIN_PWR_BUTTON >= 0) pinMode(BoardConfig::PIN_PWR_BUTTON, INPUT_PULLUP);
   _lowlight.enabled = false;
-  _lowlight.backlightOn = true;
+  _lowlight.backlightOn = false;
   applyBacklightState();
   beginSD();
 #if PAPERGO_HAS_EPDIY
   epd_init(&epd_board_v7, &ED047TC1, EPD_LUT_64K);
   g_hl = epd_hl_init(kWaveform);
-  epd_set_rotation(EPD_ROT_INVERTED_PORTRAIT);
+  epd_set_rotation(EPD_ROT_LANDSCAPE);
   epd_set_lcd_pixel_clock_MHz(17);
   epd_poweron();
   epd_clear();
