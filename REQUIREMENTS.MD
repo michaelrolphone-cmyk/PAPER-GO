@@ -1280,6 +1280,7 @@ This should be treated as a miniature e-paper field computer OS, with the spring
 - [x] Markdown Reader supports swipe-based vertical preview scrolling with bounded window rendering.
 - [x] Markdown preview supports ordered lists, link-text rendering, table-line markers, and image placeholders.
 - [x] Markdown preview renders task-list checkboxes and horizontal-rule variants with high-contrast e-paper glyphs.
+- [x] Markdown Reader persists and restores last read position for `/documents/markdown/readme.md`.
 
 - [x] Web API exposes `/api/status` for core device status snapshot.
 - [x] OpenAPI specification added for `/api/health`, `/api/status`, and `/api/apps/order`.

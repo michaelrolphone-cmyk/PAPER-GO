@@ -230,6 +230,7 @@ Behavior:
 ## Markdown Reader input file
 
 Place a document at `/documents/markdown/readme.md`. The app renders a title and a bounded preview window from that file.
+Reading progress is persisted to `/config/markdown_progress.json` and restored when reopening the Markdown Reader.
 
 OpenAPI spec: `docs/openapi.yaml`
 

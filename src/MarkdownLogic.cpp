@@ -1,4 +1,5 @@
 #include "MarkdownLogic.h"
+#include <ArduinoJson.h>
 
 static String simplifyInlineMarkdown(String line) {
   while (true) {
@@ -84,6 +85,25 @@ String markdownWindow(const String& rendered, int startLine, size_t windowLines)
     endIdx++;
   }
   return rendered.substring(startIdx, endIdx);
+}
+
+String markdownBuildProgressState(const String& path, int startLine) {
+  JsonDocument doc;
+  int safeStartLine = startLine < 0 ? 0 : startLine;
+  doc["path"] = path;
+  doc["startLine"] = safeStartLine;
+  String out;
+  serializeJson(doc, out);
+  return out;
+}
+
+int markdownReadProgressStartLine(const String& stateJson, const String& path, int defaultStartLine) {
+  JsonDocument doc;
+  if (deserializeJson(doc, stateJson) != DeserializationError::Ok) return defaultStartLine;
+  String savedPath = doc["path"] | "";
+  if (savedPath != path) return defaultStartLine;
+  int parsed = doc["startLine"] | defaultStartLine;
+  return parsed < 0 ? 0 : parsed;
 }
 
 String markdownTitle(const String& markdown) {

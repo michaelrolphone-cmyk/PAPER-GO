@@ -227,7 +227,9 @@ void UrlFetcherApp::render(SystemServices& s) {
   s.board->drawText(40,210,_preview.length() ? _preview : "No cached response.",0,1);
 }
 void MarkdownReaderApp::onStart(SystemServices& s) {
-  _startLine = 0;
+  const String path = "/documents/markdown/readme.md";
+  String progress = s.cache ? s.cache->readText("/config/markdown_progress.json", 256) : "";
+  _startLine = markdownReadProgressStartLine(progress, path, 0);
   _lastMaxStart = 0;
 }
 
@@ -260,11 +262,15 @@ void MarkdownReaderApp::render(SystemServices& s) {
 }
 
 void MarkdownReaderApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
+  int previous = _startLine;
   if (ev.type == TouchType::SwipeUp && _startLine < _lastMaxStart) _startLine += 4;
   if (ev.type == TouchType::Tap && ev.y < (BoardConfig::STATUS_BAR_H + 80) && _startLine > 0) _startLine -= 4;
   if (ev.type == TouchType::Tap && ev.y > 500 && _startLine < _lastMaxStart) _startLine += 4;
   if (_startLine < 0) _startLine = 0;
   if (_startLine > _lastMaxStart) _startLine = _lastMaxStart;
+  if (s.cache && previous != _startLine) {
+    s.cache->writeText("/config/markdown_progress.json", markdownBuildProgressState("/documents/markdown/readme.md", _startLine));
+  }
 }
 
 void FileExplorerApp::render(SystemServices& s) {

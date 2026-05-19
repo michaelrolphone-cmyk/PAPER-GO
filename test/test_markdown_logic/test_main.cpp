@@ -61,6 +61,34 @@ void test_markdown_window_scroll_helpers() {
   TEST_ASSERT_EQUAL_STRING("l2\nl3\n", win.c_str());
 }
 
+void test_markdown_progress_state_round_trip() {
+  String path = "/documents/markdown/readme.md";
+  String state = markdownBuildProgressState(path, 12);
+  TEST_ASSERT_TRUE(state.indexOf("\"path\":\"/documents/markdown/readme.md\"") >= 0);
+  TEST_ASSERT_EQUAL(12, markdownReadProgressStartLine(state, path, 0));
+}
+
+void test_markdown_progress_state_round_trip_with_json_escaped_chars() {
+  String path = "/documents/markdown/quotes-\"and\"-slashes-\\\\.md";
+  String state = markdownBuildProgressState(path, 4);
+  TEST_ASSERT_EQUAL(4, markdownReadProgressStartLine(state, path, 0));
+}
+
+void test_markdown_progress_state_mismatch_returns_default() {
+  String state = "{\"path\":\"/documents/markdown/other.md\",\"startLine\":9}";
+  TEST_ASSERT_EQUAL(3, markdownReadProgressStartLine(state, "/documents/markdown/readme.md", 3));
+}
+
+void test_markdown_progress_state_invalid_json_returns_default() {
+  String state = "{\"path\":\"/documents/markdown/readme.md\",\"startLine\":";
+  TEST_ASSERT_EQUAL(7, markdownReadProgressStartLine(state, "/documents/markdown/readme.md", 7));
+}
+
+void test_markdown_progress_state_clamps_negative_line_to_zero() {
+  String state = "{\"path\":\"/documents/markdown/readme.md\",\"startLine\":-5}";
+  TEST_ASSERT_EQUAL(0, markdownReadProgressStartLine(state, "/documents/markdown/readme.md", 7));
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_markdown_title_from_heading);
@@ -71,5 +99,10 @@ int main(int argc, char** argv) {
   RUN_TEST(test_render_preview_supports_ordered_links_and_images);
   RUN_TEST(test_render_preview_supports_task_lists_and_rule_variants);
   RUN_TEST(test_markdown_window_scroll_helpers);
+  RUN_TEST(test_markdown_progress_state_round_trip);
+  RUN_TEST(test_markdown_progress_state_round_trip_with_json_escaped_chars);
+  RUN_TEST(test_markdown_progress_state_mismatch_returns_default);
+  RUN_TEST(test_markdown_progress_state_invalid_json_returns_default);
+  RUN_TEST(test_markdown_progress_state_clamps_negative_line_to_zero);
   return UNITY_END();
 }
