@@ -189,7 +189,7 @@ The firmware shall support:
 - [x] Long-press classification implemented.
 - [x] Swipe up/down/left/right classification implemented.
 - [x] Drag classification implemented for scrolling flows.
-- [ ] Two-point touch gesture handling integrated with GT911 driver.
+- [x] Two-point touch gesture handling integrated with GT911 driver.
 
 
 Every app shall provide:
@@ -316,8 +316,8 @@ Each app icon shall have:
 
 - [x] Persistent app ordering stored in `/config/apps.json` and loaded at launcher start.
 - [x] Unknown IDs are rejected and duplicate IDs are deduplicated when loading ordering.
-- [ ] Long-press app options implemented.
-- [ ] Multi-page swipe navigation implemented when icon count exceeds one screen.
+- [x] Long-press app options implemented.
+- [x] Multi-page swipe navigation implemented when icon count exceeds one screen.
 
 
 The launcher shall support:
@@ -1226,8 +1226,8 @@ This should be treated as a miniature e-paper field computer OS, with the spring
 
 - [x] Status bar GPS indicator includes explicit states: Off, Searching, 2D fix, 3D fix, Degraded/stale, and No data.
 - [x] Time source priority is implemented in code using RTC -> GPS -> Network -> Saved.
-- [ ] Lock screen displays resolved location summary/map preview from live cache pipeline.
-- [ ] Status bar unread-message and cache-activity indicators.
+- [x] Lock screen displays resolved location summary/map preview from live cache pipeline.
+- [x] Status bar unread-message and cache-activity indicators.
 
 
 ### 19.4 Implementation Checklist

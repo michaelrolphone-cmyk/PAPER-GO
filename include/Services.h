@@ -54,6 +54,11 @@ public:
   void recordMapCacheLookup(bool hit);
   uint32_t mapCacheHitCount() const { return _mapCacheHits; }
   uint32_t mapCacheMissCount() const { return _mapCacheMisses; }
+  uint32_t lastMapCacheLookupMs() const { return _lastMapCacheLookupMs; }
+private:
+  uint32_t _mapCacheHits = 0;
+  uint32_t _mapCacheMisses = 0;
+  uint32_t _lastMapCacheLookupMs = 0;
 };
 
 class RadioService {

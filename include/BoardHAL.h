@@ -21,6 +21,7 @@ public:
   void drawLine(int x1,int y1,int x2,int y2,uint8_t gray=0);
   TouchEvent pollTouch();
   void setTouchSample(bool touching, int16_t x, int16_t y);
+  void setTouchSampleTwoPoint(bool touching, int16_t x1, int16_t y1, int16_t x2, int16_t y2);
   BatteryStatus battery();
   void sleepSeconds(uint32_t seconds);
   void setLowlightMode(bool enabled);
@@ -32,6 +33,9 @@ private:
   bool _touching=false;
   int16_t _touchX=0;
   int16_t _touchY=0;
+  bool _touchTwoPoint = false;
+  int16_t _touchX2=0;
+  int16_t _touchY2=0;
   LowlightState _lowlight;
   void applyBacklightState();
 };

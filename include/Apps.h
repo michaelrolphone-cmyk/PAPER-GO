@@ -21,6 +21,9 @@ public:
   void handleTouch(SystemServices& s, const TouchEvent& ev) override;
 private:
   std::vector<String> _orderedIds;
+  size_t _page = 0;
+  bool _showOptions = false;
+  int _selectedIndex = -1;
 };
 class LockScreenApp : public App {
 public:
@@ -34,7 +37,7 @@ private:
   String _status;
   String _preview;
 };
-class GpsMapApp : public App {
+class GpsMapApp : public SimpleListApp {
 public:
   const char* id() const override { return "gpsmap"; }
   const char* title() const override { return "GPS Map"; }
