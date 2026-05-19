@@ -18,7 +18,7 @@ This is a separate handheld e-paper app launcher project. It is not the garden w
 - Radio scanner for Wi-Fi / BLE / LoRa scaffold
 - Meshtastic placeholder app with correct storage boundaries
 - SD-hosted web server scaffold
-- Games folder with Chess, Go, Tic-Tac-Toe, and Minesweeper entries plus playable core game logic modules for all four games (rules validation/state progression), with Tic-Tac-Toe and Chess save/resume serialization
+- Games app with playable touch UIs for Chess, Go, Tic-Tac-Toe, and Minesweeper, backed by core game logic modules (rules validation/state progression), with Tic-Tac-Toe and Chess save/resume serialization
 - Settings app
 - Board abstraction layer so hardware-specific display/touch/pin details stay isolated
 
@@ -101,6 +101,7 @@ pio test -e T5_E_PAPER_S3_V7_test -f test_display_pixel_packing_logic
 pio test -e T5_E_PAPER_S3_V7_test -f test_display_framebuffer_clip_logic
 pio test -e T5_E_PAPER_S3_V7_test -f test_display_update_mode_logic
 pio test -e T5_E_PAPER_S3_V7_test -f test_weather_fetch_header_shim
+pio test -e T5_E_PAPER_S3_V7_test -f test_games_ui_logic
 ```
 
 ## Launcher configuration
