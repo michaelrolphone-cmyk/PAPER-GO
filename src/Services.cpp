@@ -12,6 +12,8 @@
 #include "MeshtasticApiLogic.h"
 #include "AppManagementApiLogic.h"
 #include "WifiConfigLogic.h"
+#include "PowerManagementLogic.h"
+#include "PowerApiLogic.h"
 
 static double bearingDeg(double lat1, double lon1, double lat2, double lon2) {
   const double d2r = PI / 180.0, r2d = 180.0 / PI;
@@ -181,6 +183,12 @@ void WebServerService::start() {
     const bool cacheActivity = _cache && hasRecentCacheActivity(_cache->lastMapCacheLookupMs(), millis(), 5UL * 60UL * 1000UL);
     String body = buildStatusApiJson(_net->status(), _gps->fix(), _board->battery(), _board->sdMounted(), _running, unreadMessages, cacheActivity);
     _server.send(200, "application/json", body);
+  });
+  _server.on("/api/power/policy", [this](){
+    if (!_cache) { _server.send(503, "application/json", "{\"error\":\"cache context unavailable\"}"); return; }
+    String raw = _cache->readText("/config/power.json", 1024);
+    PowerConfig cfg = parsePowerConfig(raw);
+    _server.send(200, "application/json", buildPowerPolicyJson(cfg.policy, cfg.valid));
   });
   _server.on("/api/cache/stats", [this](){
     if (!_cache) { _server.send(503, "application/json", "{\"error\":\"cache context unavailable\"}"); return; }

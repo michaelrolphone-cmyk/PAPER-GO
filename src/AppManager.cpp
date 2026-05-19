@@ -22,7 +22,15 @@ static StatusBarSnapshot captureStatusSnapshot(SystemServices& s, App* active) {
 
 void AppManager::add(App* app) { _apps.push_back(app); }
 App* AppManager::find(const String& id) { for(auto* a:_apps) if(id == a->id()) return a; return nullptr; }
-void AppManager::begin(SystemServices& s, const String& startId) { open(s, startId); }
+void AppManager::begin(SystemServices& s, const String& startId) {
+  _powerState.lastInteractionMs = millis();
+  if (s.cache) {
+    String raw = s.cache->readText("/config/power.json", 512);
+    PowerConfig cfg = parsePowerConfig(raw);
+    if (cfg.valid) _powerPolicy = cfg.policy;
+  }
+  open(s, startId);
+}
 void AppManager::open(SystemServices& s, const String& id) {
   App* next=find(id); if(!next) return;
   String currentId = _active ? String(_active->id()) : String("");
@@ -35,12 +43,30 @@ void AppManager::update(SystemServices& s) {
   uint32_t now=millis();
   _active->update(s, now);
   TouchEvent ev=s.board->pollTouch();
+  if(ev.type != TouchType::None) _powerState.lastInteractionMs = now;
   if(ev.type == TouchType::SwipeDown) s.requestHome = true;
   else if(ev.type == TouchType::SwipeRight && String(_active->id()) != "springboard") s.requestBack = true;
   else if(ev.type != TouchType::None) _active->handleTouch(s, ev);
   if(s.requestHome) { s.requestHome=false; _nav.clear(); open(s,"springboard"); return; }
   if(s.requestBack) { s.requestBack=false; String backId = _nav.popBackTarget(); if(backId.length()) open(s, backId); else open(s,"springboard"); return; }
   if(s.requestOpenApp.length()) { String id=s.requestOpenApp; s.requestOpenApp=""; open(s,id); return; }
+  _powerState.lockScreenActive = String(_active->id()) == "lock";
+  PowerAction action = evaluatePowerAction(_powerPolicy, _powerState, now);
+  if (action == PowerAction::EnterLockScreen && !_powerState.lockScreenActive) {
+    _powerState.lastInteractionMs = now;
+    open(s, "lock");
+    return;
+  }
+  if (action == PowerAction::EnterDeepSleep) {
+    s.board->sleepSeconds(_powerPolicy.deepSleepDurationSec);
+    return;
+  }
+
+  BatteryStatus batt = s.board->battery();
+  if (shouldDisableWifiForLowPower(_powerState.lockScreenActive, batt.charging) && s.net->status().wifi) {
+    s.net->disconnect();
+  }
+
   if(now - _lastRender > 5000) {
     bool forceFull = shouldForceFullRefresh(_refreshState, 12);
     StatusBarSnapshot snapshot = captureStatusSnapshot(s, _active);

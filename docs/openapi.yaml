@@ -102,3 +102,12 @@ paths:
           description: Meshtastic message/node counts
         "503":
           description: SD not mounted
+
+  /api/power/policy:
+    get:
+      summary: Returns effective power policy and whether SD config was present
+      responses:
+        "200":
+          description: Power policy payload
+        "503":
+          description: Cache context unavailable
