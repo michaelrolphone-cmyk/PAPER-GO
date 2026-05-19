@@ -142,6 +142,8 @@ When Web Server app is running, these HTTP endpoints are available:
 - `GET /api/cache/stats` → map cache hit/miss counters.
 - `GET /api/radio/scans` → lists files under `/radio/scans`.
 - `GET /api/meshtastic/stats` → Meshtastic message/node file counters.
+
+SD-backed endpoints return `503` with `{"error":"sd not mounted"}` when the SD card is unavailable.
 - `GET /...` → static files served from `/webroot` with content-type detection.
 
 Example command:

@@ -24,6 +24,8 @@ paths:
       responses:
         '200':
           description: App order config
+        '503':
+          description: SD not mounted
         '404':
           description: Missing config
   /api/apps/install:
@@ -34,12 +36,18 @@ paths:
           description: Installed
         '400':
           description: Invalid request
+        '503':
+          description: SD not mounted
   /api/apps/remove:
     post:
       summary: Remove an installed app manifest from SD storage
       responses:
         '200':
           description: Removed
+        '400':
+          description: Invalid request
+        '503':
+          description: SD not mounted
         '404':
           description: App not installed
   /api/apps/update:
@@ -48,6 +56,10 @@ paths:
       responses:
         '200':
           description: Updated
+        '400':
+          description: Invalid request
+        '503':
+          description: SD not mounted
         '404':
           description: App not installed
 
@@ -57,6 +69,8 @@ paths:
       responses:
         "200":
           description: Cached weather payload
+        "503":
+          description: SD not mounted
         "404":
           description: Missing weather cache file
 
@@ -75,6 +89,8 @@ paths:
       responses:
         "200":
           description: Radio scan file list
+        "503":
+          description: SD not mounted
         "404":
           description: Missing scans directory
 
@@ -84,3 +100,5 @@ paths:
       responses:
         "200":
           description: Meshtastic message/node counts
+        "503":
+          description: SD not mounted
