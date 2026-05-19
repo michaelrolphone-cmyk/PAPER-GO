@@ -3,6 +3,11 @@
 #include "SystemServices.h"
 #include "BoardConfig.h"
 #include "Services.h"
+#include "TicTacToeLogic.h"
+#include "MinesweeperLogic.h"
+#include "ChessLogic.h"
+#include "GoLogic.h"
+#include "SettingsLogic.h"
 #include <vector>
 #include <vector>
 
@@ -105,11 +110,27 @@ class GamesApp : public SimpleListApp {
 public:
   const char* id() const override { return "games"; }
   const char* title() const override { return "Games"; }
+  void onStart(SystemServices& s) override;
   void render(SystemServices& s) override;
+  void handleTouch(SystemServices& s, const TouchEvent& ev) override;
+private:
+  enum class GameScreen : uint8_t { Menu = 0, TicTacToe, Minesweeper, Chess, Go };
+  GameScreen _screen = GameScreen::Menu;
+  TicTacToeGame _ttt;
+  MinesweeperGame _mines;
+  ChessGame _chess;
+  GoGame _go;
+  int _chessSelected = -1;
 };
 class SettingsApp : public SimpleListApp {
 public:
   const char* id() const override { return "settings"; }
   const char* title() const override { return "Settings"; }
+  void onStart(SystemServices& s) override;
   void render(SystemServices& s) override;
+  void handleTouch(SystemServices& s, const TouchEvent& ev) override;
+private:
+  SettingsViewState _state;
+  void loadFromConfig(SystemServices& s);
+  void savePowerConfig(SystemServices& s);
 };
