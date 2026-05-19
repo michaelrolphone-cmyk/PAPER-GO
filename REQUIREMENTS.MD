@@ -776,6 +776,12 @@ Required games:
 
 ## 16.2 Shared Game Requirements
 
+### 16.2 Implementation Checklist
+
+- [x] New game core logic implemented for Chess, Go, Tic-tac-toe, and Minesweeper.
+- [x] Save/resume core serialization implemented for Chess and Tic-tac-toe.
+- [ ] Save/resume serialization not yet added for Go and Minesweeper.
+
 Each game shall support:
 
 1. Touch controls.
@@ -811,6 +817,14 @@ Go shall support:
 7. Basic scoring helper if feasible.
 
 ## 16.5 Tic-Tac-Toe Requirements
+
+### 16.5 Implementation Checklist
+
+- [x] Local two-player mode.
+- [ ] Optional simple AI.
+- [x] Win/draw detection.
+- [x] Reset.
+- [x] New game/save game/resume game core logic implemented.
 
 Tic-tac-toe shall support:
 
