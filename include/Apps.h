@@ -19,6 +19,7 @@ public:
   void onStart(SystemServices& s) override;
   void render(SystemServices& s) override;
   void handleTouch(SystemServices& s, const TouchEvent& ev) override;
+  bool handleHomeButton(SystemServices& s) override;
 private:
   std::vector<String> _orderedIds;
   size_t _page = 0;

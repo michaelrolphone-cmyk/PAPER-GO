@@ -20,8 +20,12 @@ public:
   void drawText(int x,int y,const String& text,uint8_t gray=0,uint8_t size=1);
   void drawLine(int x1,int y1,int x2,int y2,uint8_t gray=0);
   TouchEvent pollTouch();
+  bool pollHomeButtonPressed();
+  bool pollPowerButtonPressed();
   void setTouchSample(bool touching, int16_t x, int16_t y);
   void setTouchSampleTwoPoint(bool touching, int16_t x1, int16_t y1, int16_t x2, int16_t y2);
+  void setHomeButtonSample(bool pressed);
+  void setPowerButtonSample(bool pressed);
   BatteryStatus battery();
   void sleepSeconds(uint32_t seconds);
   void setLowlightMode(bool enabled);
@@ -36,6 +40,12 @@ private:
   bool _touchTwoPoint = false;
   int16_t _touchX2=0;
   int16_t _touchY2=0;
+  bool _homeButtonOverride=false;
+  bool _homeButtonPressed=false;
+  bool _homeButtonLast=false;
+  bool _powerButtonOverride=false;
+  bool _powerButtonPressed=false;
+  bool _powerButtonLast=false;
   LowlightState _lowlight;
   void applyBacklightState();
 };

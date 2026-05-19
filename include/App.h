@@ -13,4 +13,5 @@ public:
   virtual void update(SystemServices& s, uint32_t now) {}
   virtual void render(SystemServices& s) = 0;
   virtual void handleTouch(SystemServices& s, const TouchEvent& ev) {}
+  virtual bool handleHomeButton(SystemServices& s) { (void)s; return false; }
 };
