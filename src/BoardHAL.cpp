@@ -7,6 +7,7 @@ bool BoardHAL::begin() {
   delay(250);
   Wire.begin(BoardConfig::I2C_SDA, BoardConfig::I2C_SCL);
   pinMode(BoardConfig::PIN_BACKLIGHT, OUTPUT);
+  pinMode(BoardConfig::PIN_HOME_BUTTON, INPUT_PULLUP);
   _lowlight.enabled = false;
   _lowlight.backlightOn = true;
   applyBacklightState();
@@ -52,11 +53,21 @@ TouchEvent BoardHAL::pollTouch() {
   if (_touchTwoPoint) return _touchClassifier.updateTwoPoint(_touching, _touchX, _touchY, _touchX2, _touchY2, millis());
   return _touchClassifier.update(_touching, _touchX, _touchY, millis());
 }
+bool BoardHAL::pollHomeButtonPressed() {
+  bool pressed = _homeButtonOverride ? _homeButtonPressed : (digitalRead(BoardConfig::PIN_HOME_BUTTON) == LOW);
+  bool risingEdge = pressed && !_homeButtonLast;
+  _homeButtonLast = pressed;
+  return risingEdge;
+}
 void BoardHAL::setTouchSample(bool touching, int16_t x, int16_t y) {
   _touchTwoPoint = false;
   _touching = touching;
   _touchX = x;
   _touchY = y;
+}
+void BoardHAL::setHomeButtonSample(bool pressed) {
+  _homeButtonOverride = true;
+  _homeButtonPressed = pressed;
 }
 void BoardHAL::setTouchSampleTwoPoint(bool touching, int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
   _touchTwoPoint = true;

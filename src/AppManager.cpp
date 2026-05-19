@@ -41,6 +41,14 @@ void AppManager::update(SystemServices& s) {
   if(!_active) return;
   uint32_t now=millis();
   _active->update(s, now);
+  if (s.board->pollHomeButtonPressed()) {
+    _powerState.lastInteractionMs = now;
+    if (_active->handleHomeButton(s)) {
+      render(s, true);
+      return;
+    }
+    s.requestHome = true;
+  }
   TouchEvent ev=s.board->pollTouch();
   if(ev.type != TouchType::None) _powerState.lastInteractionMs = now;
   if(ev.type == TouchType::SwipeDown) s.requestHome = true;
@@ -104,4 +112,3 @@ void AppManager::render(SystemServices& s, bool full) {
   s.board->endFrame(fullRefresh);
   recordDisplayRefresh(_refreshState, fullRefresh);
 }
-

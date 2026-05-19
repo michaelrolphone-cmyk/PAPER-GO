@@ -9,6 +9,7 @@ static constexpr uint8_t GRAYS = 16;
 
 // LILYGO T5-4.7-S3 Pro pin map.
 static constexpr int PIN_SD_CS = 12;
+static constexpr int PIN_HOME_BUTTON = 12;
 static constexpr int PIN_GPS_RX = 44;
 static constexpr int PIN_GPS_TX = 43;
 static constexpr uint32_t GPS_BAUD = 9600;
