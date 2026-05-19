@@ -65,6 +65,14 @@ std::vector<String> parseOrderedAppIds(const String& jsonText) {
   return ordered;
 }
 
+String serializeOrderedAppIds(const std::vector<String>& orderedIds) {
+  JsonDocument doc;
+  JsonArray arr = doc["order"].to<JsonArray>();
+  for (const auto& id : orderedIds) arr.add(id);
+  String out;
+  serializeJson(doc, out);
+  return out;
+}
 
 bool appSupportsOfflineMode(const String& appId) {
   return !(appId == "url" || appId == "weather");

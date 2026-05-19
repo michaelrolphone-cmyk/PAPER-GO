@@ -4,6 +4,7 @@
 #include "DisplayPixelPackingLogic.h"
 #include "DisplayRenderLogic.h"
 #include "DisplayUpdateModeLogic.h"
+#include "TouchInputLogic.h"
 #include <SPI.h>
 
 #if __has_include(<epdiy.h>)
@@ -51,6 +52,14 @@ bool BoardHAL::begin() {
   pinMode(BoardConfig::PIN_BL_EN, OUTPUT);
   if (BoardConfig::PIN_HOME_BUTTON >= 0) pinMode(BoardConfig::PIN_HOME_BUTTON, INPUT_PULLUP);
   if (BoardConfig::PIN_PWR_BUTTON >= 0) pinMode(BoardConfig::PIN_PWR_BUTTON, INPUT_PULLUP);
+  if (BoardConfig::PIN_TOUCH_INT >= 0) pinMode(BoardConfig::PIN_TOUCH_INT, INPUT);
+  if (BoardConfig::PIN_TOUCH_RST >= 0) {
+    pinMode(BoardConfig::PIN_TOUCH_RST, OUTPUT);
+    digitalWrite(BoardConfig::PIN_TOUCH_RST, LOW);
+    delay(5);
+    digitalWrite(BoardConfig::PIN_TOUCH_RST, HIGH);
+    delay(55);
+  }
   _lowlight.enabled = false;
   _lowlight.backlightOn = false;
   applyBacklightState();
@@ -146,6 +155,55 @@ void BoardHAL::drawLine(int x1,int y1,int x2,int y2,uint8_t gray) {
 }
 // rest unchanged
 TouchEvent BoardHAL::pollTouch() {
+  constexpr uint16_t kGt911StatusReg = 0x814E;
+  constexpr uint16_t kGt911Point1Reg = 0x814F;
+  constexpr size_t kMaxRead = 1 + (8 * 2);
+  uint8_t status = 0;
+  bool hadSample = false;
+  Wire.beginTransmission(BoardConfig::GT911_ADDR);
+  Wire.write(static_cast<uint8_t>((kGt911StatusReg >> 8) & 0xFF));
+  Wire.write(static_cast<uint8_t>(kGt911StatusReg & 0xFF));
+  if (Wire.endTransmission(false) == 0 && Wire.requestFrom(static_cast<int>(BoardConfig::GT911_ADDR), 1) == 1) {
+    status = Wire.read();
+    uint8_t count = status & 0x0F;
+    if (status & 0x80) {
+      hadSample = true;
+      size_t toRead = 1 + ((count >= 2 ? 2 : 1) * 8);
+      if (toRead > kMaxRead) toRead = kMaxRead;
+      uint8_t payload[kMaxRead];
+      payload[0] = status;
+      if (count > 0) {
+        Wire.beginTransmission(BoardConfig::GT911_ADDR);
+        Wire.write(static_cast<uint8_t>((kGt911Point1Reg >> 8) & 0xFF));
+        Wire.write(static_cast<uint8_t>(kGt911Point1Reg & 0xFF));
+        if (Wire.endTransmission(false) == 0 && Wire.requestFrom(static_cast<int>(BoardConfig::GT911_ADDR), static_cast<int>(toRead - 1)) == static_cast<int>(toRead - 1)) {
+          for (size_t i = 1; i < toRead; ++i) payload[i] = Wire.read();
+        }
+      }
+      TouchPointSample sample;
+      if (decodeGt911TouchPayload(payload, toRead, sample)) {
+        _touching = sample.touching;
+        _touchTwoPoint = sample.twoPoint;
+        mapTouchToLandscape(BoardConfig::SCREEN_W, BoardConfig::SCREEN_H, BoardConfig::TOUCH_MAX_X, BoardConfig::TOUCH_MAX_Y, sample.x1, sample.y1, _touchX, _touchY);
+        if (sample.twoPoint) mapTouchToLandscape(BoardConfig::SCREEN_W, BoardConfig::SCREEN_H, BoardConfig::TOUCH_MAX_X, BoardConfig::TOUCH_MAX_Y, sample.x2, sample.y2, _touchX2, _touchY2);
+      } else {
+        _touching = false;
+        _touchTwoPoint = false;
+      }
+      Wire.beginTransmission(BoardConfig::GT911_ADDR);
+      Wire.write(static_cast<uint8_t>((kGt911StatusReg >> 8) & 0xFF));
+      Wire.write(static_cast<uint8_t>(kGt911StatusReg & 0xFF));
+      Wire.write(static_cast<uint8_t>(0x00));
+      Wire.endTransmission();
+    } else {
+      _touching = false;
+      _touchTwoPoint = false;
+    }
+  }
+  if (!hadSample && BoardConfig::PIN_TOUCH_INT >= 0 && digitalRead(BoardConfig::PIN_TOUCH_INT) == HIGH) {
+    _touching = false;
+    _touchTwoPoint = false;
+  }
   if (_touchTwoPoint) return _touchClassifier.updateTwoPoint(_touching, _touchX, _touchY, _touchX2, _touchY2, millis());
   return _touchClassifier.update(_touching, _touchX, _touchY, millis());
 }
