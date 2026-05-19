@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include <WString.h>
 #include <vector>
 
 class GoGame {
@@ -11,6 +12,8 @@ public:
   Stone at(uint8_t x,uint8_t y) const;
   Stone turn() const { return _turn; }
   uint8_t size() const { return _size; }
+  String serialize() const;
+  bool deserialize(const String& data);
 private:
   uint8_t _size=9; Stone _turn=Stone::Black; uint8_t _consecutivePass=0;
   std::vector<Stone> _b;

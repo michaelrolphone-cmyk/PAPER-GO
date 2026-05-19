@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+#include <WString.h>
 #include <vector>
 
 class MinesweeperGame {
@@ -13,6 +14,8 @@ public:
   uint8_t adjacent(uint8_t x,uint8_t y) const;
   uint8_t mineCount() const { return _mines; }
   State state() const { return _state; }
+  String serialize() const;
+  bool deserialize(const String& data);
 private:
   uint8_t _w=0,_h=0,_mines=0; State _state=State::InProgress;
   std::vector<uint8_t> _mine,_rev,_flag;
