@@ -43,6 +43,14 @@ void test_render_preview_supports_ordered_links_and_images() {
   TEST_ASSERT_TRUE(out.indexOf("[T] |h|v|") >= 0);
 }
 
+void test_render_preview_supports_task_lists_and_rule_variants() {
+  String md = "- [ ] Pending task\n- [x] Done task\n___\n";
+  String out = markdownRenderPreview(md, 500, 12, 40);
+  TEST_ASSERT_TRUE(out.indexOf("☐ Pending task") >= 0);
+  TEST_ASSERT_TRUE(out.indexOf("☑ Done task") >= 0);
+  TEST_ASSERT_TRUE(out.indexOf("----------------") >= 0);
+}
+
 void test_markdown_window_scroll_helpers() {
   String rendered = "l1\nl2\nl3\nl4\nl5\n";
   TEST_ASSERT_EQUAL(2, markdownClampStartLine(rendered, 99, 3));
@@ -61,6 +69,7 @@ int main(int argc, char** argv) {
   RUN_TEST(test_render_preview_formats_structural_lines);
   RUN_TEST(test_render_preview_wraps_long_lines);
   RUN_TEST(test_render_preview_supports_ordered_links_and_images);
+  RUN_TEST(test_render_preview_supports_task_lists_and_rule_variants);
   RUN_TEST(test_markdown_window_scroll_helpers);
   return UNITY_END();
 }
