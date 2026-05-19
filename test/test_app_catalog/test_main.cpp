@@ -15,6 +15,14 @@ void test_parse_order_filters_unknown_and_duplicates() {
   TEST_ASSERT_EQUAL(1, gamesCount);
 }
 
+
+void test_offline_mode_support_matrix() {
+  TEST_ASSERT_TRUE(appSupportsOfflineMode("gpsmap"));
+  TEST_ASSERT_TRUE(appSupportsOfflineMode("files"));
+  TEST_ASSERT_FALSE(appSupportsOfflineMode("url"));
+  TEST_ASSERT_FALSE(appSupportsOfflineMode("weather"));
+}
+
 void test_parse_invalid_json_returns_empty() {
   auto ids = parseOrderedAppIds("not-json");
   TEST_ASSERT_EQUAL(0, ids.size());
@@ -23,6 +31,7 @@ void test_parse_invalid_json_returns_empty() {
 int main(int argc, char **argv) {
   UNITY_BEGIN();
   RUN_TEST(test_parse_order_filters_unknown_and_duplicates);
+  RUN_TEST(test_offline_mode_support_matrix);
   RUN_TEST(test_parse_invalid_json_returns_empty);
   return UNITY_END();
 }

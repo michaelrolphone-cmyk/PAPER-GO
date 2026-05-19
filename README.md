@@ -164,6 +164,8 @@ Global gestures: swipe-down returns to springboard (Home), swipe-right returns t
 Springboard launcher gestures:
 - Swipe left/right to move between app pages when there are more than 15 apps.
 - Long-press an app tile to open app options, then tap "Move to Front" to pin it to the first slot.
+- Online-required apps display an `ONLINE` badge when Wi-Fi is connected, and an `OFFLINE` unavailable badge when Wi-Fi is disconnected.
+- Tapping an app in `OFFLINE` unavailable state is blocked until Wi-Fi connectivity is restored.
 
 ## Radio scan logs
 

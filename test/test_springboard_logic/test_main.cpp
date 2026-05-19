@@ -20,6 +20,19 @@ void test_tapped_index_for_page() {
   TEST_ASSERT_EQUAL(-1, outside);
 }
 
+void test_online_required_unavailable_state() {
+  TEST_ASSERT_TRUE(springboardOnlineRequiredUnavailable(false, false));
+  TEST_ASSERT_FALSE(springboardOnlineRequiredUnavailable(false, true));
+  TEST_ASSERT_FALSE(springboardOnlineRequiredUnavailable(true, false));
+}
+
+void test_can_open_app_matrix() {
+  TEST_ASSERT_FALSE(springboardCanOpenApp(false, false));
+  TEST_ASSERT_TRUE(springboardCanOpenApp(false, true));
+  TEST_ASSERT_TRUE(springboardCanOpenApp(true, false));
+  TEST_ASSERT_TRUE(springboardCanOpenApp(true, true));
+}
+
 void test_move_to_front() {
   std::vector<String> ids = {"gpsmap", "radio", "weather"};
   TEST_ASSERT_TRUE(springboardMoveAppToFront(ids, 2));
@@ -31,6 +44,8 @@ int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_page_count_and_start);
   RUN_TEST(test_tapped_index_for_page);
+  RUN_TEST(test_online_required_unavailable_state);
+  RUN_TEST(test_can_open_app_matrix);
   RUN_TEST(test_move_to_front);
   return UNITY_END();
 }
