@@ -99,7 +99,10 @@ void SpringboardApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
 
   if (_showOptions) {
     if (ev.x >= 270 && ev.x <= 660 && ev.y >= 280 && ev.y <= 320 && _selectedIndex >= 0) {
-      springboardMoveAppToFront(_orderedIds, static_cast<size_t>(_selectedIndex));
+      bool moved = springboardMoveAppToFront(_orderedIds, static_cast<size_t>(_selectedIndex));
+      if (moved && s.cache) {
+        s.cache->writeText("/config/apps.json", serializeOrderedAppIds(_orderedIds));
+      }
     }
     _showOptions = false;
     _selectedIndex = -1;

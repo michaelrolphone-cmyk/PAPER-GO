@@ -87,7 +87,8 @@ Expected boot log prefixes:
 ## Notes
 
 - Display initialization requires `epdiy.h` at build time; firmware compilation intentionally fails if the panel driver is missing.
-- Touch input currently has a stub event provider and is structured for GT911 integration.
+- Touch input is read from GT911 over I2C (`0x5D`) in `BoardHAL::pollTouch()`, including explicit controller status clear and release-state handling, then mapped into landscape display coordinates.
+- Touch coordinate mapping uses `BoardConfig::TOUCH_MAX_X`/`TOUCH_MAX_Y` so raw panel coordinates are scaled to screen-space before gesture classification.
 - GPS defaults to a secondary UART but pins must be confirmed against the exact board revision.
 - LoRa defaults are placeholders; wire to the actual SX1262 pins from the LILYGO schematic/examples.
 
@@ -101,6 +102,7 @@ pio test -e T5_E_PAPER_S3_V7_test -f test_display_pixel_packing_logic
 pio test -e T5_E_PAPER_S3_V7_test -f test_display_framebuffer_clip_logic
 pio test -e T5_E_PAPER_S3_V7_test -f test_display_update_mode_logic
 pio test -e T5_E_PAPER_S3_V7_test -f test_weather_fetch_header_shim
+pio test -e T5_E_PAPER_S3_V7_test -f test_touch_input_logic
 pio test -e T5_E_PAPER_S3_V7_test -f test_games_ui_logic
 ```
 
@@ -201,7 +203,7 @@ JSON
 ## Touch gesture support
 
 Gesture classification now supports: tap, long-press, drag, swipe-left/right/up/down (via `TouchClassifier`, used by `BoardHAL::pollTouch`).
-Two-point touch is integrated with the touch classifier and emits `PinchIn`/`PinchOut` events via `BoardHAL::setTouchSampleTwoPoint(...)` and `BoardHAL::pollTouch()`.
+Two-point touch is read from GT911 point slots and integrated with the touch classifier to emit `PinchIn`/`PinchOut` events via `BoardHAL::pollTouch()`.
 
 ## Swipe navigation
 

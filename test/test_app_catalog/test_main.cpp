@@ -28,10 +28,21 @@ void test_parse_invalid_json_returns_empty() {
   TEST_ASSERT_EQUAL(0, ids.size());
 }
 
+void test_serialize_then_parse_round_trip_preserves_order() {
+  std::vector<String> ids = {"weather", "gpsmap", "settings", "radio"};
+  String json = serializeOrderedAppIds(ids);
+  auto parsed = parseOrderedAppIds(json);
+  TEST_ASSERT_TRUE(parsed.size() >= ids.size());
+  for (size_t i = 0; i < ids.size(); ++i) {
+    TEST_ASSERT_EQUAL_STRING(ids[i].c_str(), parsed[i].c_str());
+  }
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
   RUN_TEST(test_parse_order_filters_unknown_and_duplicates);
   RUN_TEST(test_offline_mode_support_matrix);
   RUN_TEST(test_parse_invalid_json_returns_empty);
+  RUN_TEST(test_serialize_then_parse_round_trip_preserves_order);
   return UNITY_END();
 }
