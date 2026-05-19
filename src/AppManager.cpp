@@ -2,6 +2,7 @@
 #include "BoardConfig.h"
 #include "Services.h"
 #include "StatusLogic.h"
+#include "StatusBarRenderLogic.h"
 
 void AppManager::add(App* app) { _apps.push_back(app); }
 App* AppManager::find(const String& id) { for(auto* a:_apps) if(id == a->id()) return a; return nullptr; }
@@ -33,17 +34,31 @@ void AppManager::render(SystemServices& s, bool full) {
   BatteryStatus b=s.board->battery();
   NetStatus n=s.net->status();
   GpsFix g=s.gps->fix();
-  s.board->fillRect(0,0,BoardConfig::SCREEN_W,BoardConfig::STATUS_BAR_H,14);
-  s.board->drawText(8,10,"T5 Field OS",0,1);
-  s.board->drawText(160,10,String("WiFi:")+(n.wifi?"on":"off"),0,1);
   GpsStatusState gpsState = deriveGpsStatus(g, 15000, true);
-  s.board->drawText(260,10,String("GPS:")+gpsStatusLabel(gpsState),0,1);
-  s.board->drawText(380,10,String("SD:")+(s.board->sdMounted()?"ok":"fail"),0,1);
-  s.board->drawText(470,10,String("BAT:")+(b.percent>=0?String(b.percent)+"%":"?"),0,1);
-  s.board->drawText(580,10,b.charging?"charging":"",0,1);
   TimeSource timeSource = resolveTimeSource({false, g.valid, n.wifi, false});
-  s.board->drawText(700,10,String("TIME:")+timeSourceLabel(timeSource),0,1);
-  s.board->drawText(850,10,_active->title(),0,1);
+  StatusBarSnapshot snapshot;
+  snapshot.wifi = n.wifi;
+  snapshot.sdMounted = s.board->sdMounted();
+  snapshot.batteryPercent = b.percent;
+  snapshot.charging = b.charging;
+  snapshot.gpsState = gpsState;
+  snapshot.timeSource = timeSource;
+  snapshot.activeTitle = _active->title();
+
+  bool renderBar = full || shouldRenderStatusBar(_havePreviousStatusBar ? &_previousStatusBar : nullptr, snapshot);
+  if (renderBar) {
+    s.board->fillRect(0,0,BoardConfig::SCREEN_W,BoardConfig::STATUS_BAR_H,14);
+    s.board->drawText(8,10,"T5 Field OS",0,1);
+    s.board->drawText(160,10,String("WiFi:")+(n.wifi?"on":"off"),0,1);
+    s.board->drawText(260,10,String("GPS:")+gpsStatusLabel(gpsState),0,1);
+    s.board->drawText(380,10,String("SD:")+(snapshot.sdMounted?"ok":"fail"),0,1);
+    s.board->drawText(470,10,String("BAT:")+(b.percent>=0?String(b.percent)+"%":"?"),0,1);
+    s.board->drawText(580,10,b.charging?"charging":"",0,1);
+    s.board->drawText(700,10,String("TIME:")+timeSourceLabel(timeSource),0,1);
+    s.board->drawText(850,10,_active->title(),0,1);
+    _previousStatusBar = snapshot;
+    _havePreviousStatusBar = true;
+  }
   _active->render(s);
   s.board->endFrame(full);
 }

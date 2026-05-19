@@ -1228,6 +1228,9 @@ This should be treated as a miniature e-paper field computer OS, with the spring
 - [x] Time source priority is implemented in code using RTC -> GPS -> Network -> Saved.
 - [x] Lock screen displays resolved location summary/map preview from live cache pipeline.
 - [x] Status bar unread-message and cache-activity indicators.
+- [x] Status bar rendering now skips unchanged frames using snapshot comparison to support e-paper partial-refresh behavior.
+- [x] Status bar redraw cache is scoped to each `AppManager` instance (no function-static cross-instance state).
+- [x] Board pin mapping aligned to T5-4.7-S3 Pro for display timing/I2C/SD/LoRa/GPS with display control on IO48.
 
 
 ### 19.4 Implementation Checklist

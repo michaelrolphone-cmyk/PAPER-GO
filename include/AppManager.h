@@ -4,6 +4,7 @@
 #include "App.h"
 #include "SystemServices.h"
 #include "NavLogic.h"
+#include "StatusBarRenderLogic.h"
 
 class AppManager {
 public:
@@ -18,5 +19,7 @@ private:
   App* _active=nullptr;
   uint32_t _lastRender=0;
   NavigationStack _nav;
+  bool _havePreviousStatusBar=false;
+  StatusBarSnapshot _previousStatusBar;
   App* find(const String& id);
 };
