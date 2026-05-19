@@ -45,8 +45,17 @@ void SpringboardApp::render(SystemServices& s) {
     int c=local%cols, r=local/cols, x=startX+c*cellW, y=startY+r*cellH;
     s.board->drawRect(x,y,150,100,0);
     String appId = _orderedIds[i];
-    s.board->drawText(x+18,y+30,appDisplayNameById(appId).substring(0,10),0,2);
+    bool supportsOffline = appSupportsOfflineMode(appId);
+    bool wifiConnected = s.net && s.net->status().wifi;
+    bool unavailable = springboardOnlineRequiredUnavailable(supportsOffline, wifiConnected);
+    uint8_t titleColor = unavailable ? 5 : 0;
+    s.board->drawText(x+18,y+30,appDisplayNameById(appId).substring(0,10),titleColor,2);
     s.board->drawText(x+18,y+70,appId,7,1);
+    if (!supportsOffline) {
+      s.board->fillRect(x+72, y+6, 70, 20, 13);
+      s.board->drawRect(x+72, y+6, 70, 20, 0);
+      s.board->drawText(x+78, y+10, unavailable ? "OFFLINE" : "ONLINE", 0, 1);
+    }
   }
   s.board->drawText(20, 510, String("Page ") + String(_page + 1) + "/" + String(max((size_t)1, pages)) + " swipe left/right", 0, 1);
   if (_showOptions && _selectedIndex >= 0 && _selectedIndex < (int)_orderedIds.size()) {
@@ -84,7 +93,14 @@ void SpringboardApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
   }
 
   int idx = springboardTappedIndexForPage(ev.x, ev.y, _page, pageSize);
-  if(idx>=0 && idx<(int)_orderedIds.size()) s.requestOpenApp = _orderedIds[idx];
+  if (idx < 0 || idx >= (int)_orderedIds.size()) return;
+
+  String appId = _orderedIds[idx];
+  bool supportsOffline = appSupportsOfflineMode(appId);
+  bool wifiConnected = s.net && s.net->status().wifi;
+  if (!springboardCanOpenApp(supportsOffline, wifiConnected)) return;
+
+  s.requestOpenApp = appId;
 }
 
 void LockScreenApp::render(SystemServices& s) {

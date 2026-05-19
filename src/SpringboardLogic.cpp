@@ -39,3 +39,13 @@ bool springboardMoveAppToFront(std::vector<String>& orderedIds, size_t selectedI
   orderedIds.insert(orderedIds.begin(), id);
   return true;
 }
+
+
+bool springboardOnlineRequiredUnavailable(bool appSupportsOffline, bool wifiConnected) {
+  return !appSupportsOffline && !wifiConnected;
+}
+
+
+bool springboardCanOpenApp(bool appSupportsOffline, bool wifiConnected) {
+  return !springboardOnlineRequiredUnavailable(appSupportsOffline, wifiConnected);
+}

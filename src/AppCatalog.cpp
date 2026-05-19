@@ -64,3 +64,8 @@ std::vector<String> parseOrderedAppIds(const String& jsonText) {
 
   return ordered;
 }
+
+
+bool appSupportsOfflineMode(const String& appId) {
+  return !(appId == "url" || appId == "weather");
+}

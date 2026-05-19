@@ -318,6 +318,8 @@ Each app icon shall have:
 - [x] Unknown IDs are rejected and duplicate IDs are deduplicated when loading ordering.
 - [x] Long-press app options implemented.
 - [x] Multi-page swipe navigation implemented when icon count exceeds one screen.
+- [x] Connectivity-dependent app icons display an online-required status badge.
+- [x] Connectivity-dependent app icons render a distinct unavailable visual state.
 
 
 The launcher shall support:
