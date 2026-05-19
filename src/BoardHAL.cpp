@@ -1,12 +1,18 @@
 #include "BoardHAL.h"
 #include "BoardConfig.h"
 #include "DisplayRenderLogic.h"
+#include <SPI.h>
 
 bool BoardHAL::begin() {
   Serial.begin(115200);
   delay(250);
   Wire.begin(BoardConfig::I2C_SDA, BoardConfig::I2C_SCL);
-  pinMode(BoardConfig::PIN_BACKLIGHT, OUTPUT);
+  SPI.begin(BoardConfig::PIN_SPI_SCLK, BoardConfig::PIN_SPI_MISO, BoardConfig::PIN_SPI_MOSI);
+  pinMode(BoardConfig::PIN_SD_CS, OUTPUT);
+  digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
+  pinMode(BoardConfig::PIN_LORA_NSS, OUTPUT);
+  digitalWrite(BoardConfig::PIN_LORA_NSS, HIGH);
+  pinMode(BoardConfig::PIN_BL_EN, OUTPUT);
   if (BoardConfig::PIN_HOME_BUTTON >= 0) pinMode(BoardConfig::PIN_HOME_BUTTON, INPUT_PULLUP);
   if (BoardConfig::PIN_PWR_BUTTON >= 0) pinMode(BoardConfig::PIN_PWR_BUTTON, INPUT_PULLUP);
   _lowlight.enabled = false;
@@ -114,9 +120,9 @@ void BoardHAL::toggleBacklight() {
 }
 
 void BoardHAL::applyBacklightState() {
-  digitalWrite(BoardConfig::PIN_BACKLIGHT, shouldBacklightBeOn(_lowlight) ? HIGH : LOW);
+  digitalWrite(BoardConfig::PIN_BL_EN, shouldBacklightBeOn(_lowlight) ? HIGH : LOW);
   Serial.printf("[BACKLIGHT] lowlight=%s state=%s pin=%d\n",
                 _lowlight.enabled ? "on" : "off",
                 shouldBacklightBeOn(_lowlight) ? "on" : "off",
-                BoardConfig::PIN_BACKLIGHT);
+                BoardConfig::PIN_BL_EN);
 }

@@ -195,7 +195,7 @@ Global gestures: swipe-down returns to springboard (Home), swipe-right returns t
 
 - **Home button**: sends the UI to the Springboard from any app.
 - **Home button while already on Springboard**: jumps to the first Springboard page; if already on page 1 it does nothing.
-- **IO48 backlight control line**: used by `BoardHAL` lowlight/backlight control and lock-screen tap toggling.
+- **Backlight/frontlight enable**: GPIO11 (`PIN_BL_EN`) is used by `BoardHAL` lowlight/backlight control and lock-screen tap toggling.
 - **PWR button**:
   - From normal operation: enters low-power lock-screen mode.
   - From lock-screen mode: returns to normal online operation and attempts Wi-Fi reconnect from saved credentials.
