@@ -82,10 +82,11 @@ pio device monitor --baud 115200
 Expected boot log prefixes:
 - `[BOOT]` for one-time initialization results (board/cache/gps/net/radio/web).
 - `[NET]` for periodic connection-state snapshots (`wifi`, `ssid`, `ip`).
+- `EPD rotated size: <w>x<h>` and `T5 Field OS HAL online (boot splash: drawn)` confirm the first display smoke frame was submitted during boot.
 
 ## Notes
 
-- Display drawing primitives (`clear`, `fillRect`, `drawLine`, `drawText`) render to the e-paper framebuffer when `epdiy` is available at build time.
+- Display initialization requires `epdiy.h` at build time; firmware compilation intentionally fails if the panel driver is missing.
 - Touch input currently has a stub event provider and is structured for GT911 integration.
 - GPS defaults to a secondary UART but pins must be confirmed against the exact board revision.
 - LoRa defaults are placeholders; wire to the actual SX1262 pins from the LILYGO schematic/examples.
@@ -94,7 +95,12 @@ Expected boot log prefixes:
 ## Test commands
 
 ```bash
-pio test -e lilygo_t5_s3_pro_test
+pio test -e T5_E_PAPER_S3_V7_test
+pio test -e T5_E_PAPER_S3_V7_test -f test_lowlight_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_display_pixel_packing_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_display_framebuffer_clip_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_display_update_mode_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_weather_fetch_header_shim
 ```
 
 ## Launcher configuration

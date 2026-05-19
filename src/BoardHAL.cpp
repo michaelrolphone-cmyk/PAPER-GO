@@ -1,32 +1,34 @@
 #include "BoardHAL.h"
 #include "BoardConfig.h"
+#include "DisplayFramebufferClipLogic.h"
+#include "DisplayPixelPackingLogic.h"
 #include "DisplayRenderLogic.h"
+#include "DisplayUpdateModeLogic.h"
 #include <SPI.h>
 
 #if __has_include(<epdiy.h>)
 #include <epdiy.h>
-#define PAPERGO_HAS_EPDIY 1
 #else
 #error "epdiy.h not found. The paper display driver is not in the build."
 #endif
 
 namespace {
-#if PAPERGO_HAS_EPDIY
 constexpr const EpdWaveform* kWaveform = EPD_BUILTIN_WAVEFORM;
 EpdiyHighlevelState g_hl;
 bool g_displayReady = false;
+bool g_bootSplashDrawn = false;
+int g_fbWidth = BoardConfig::SCREEN_W;
+int g_fbHeight = BoardConfig::SCREEN_H;
 
 inline void setPixel4bpp(int x, int y, uint8_t gray) {
   if (!g_displayReady) return;
-  if (x < 0 || y < 0 || x >= BoardConfig::SCREEN_W || y >= BoardConfig::SCREEN_H) return;
+  if (x < 0 || y < 0 || x >= g_fbWidth || y >= g_fbHeight) return;
   uint8_t* fb = epd_hl_get_framebuffer(&g_hl);
   if (!fb) return;
-  const int idx = y * BoardConfig::SCREEN_W + x;
+  const int idx = y * g_fbWidth + x;
   const int byteIndex = idx >> 1;
-  if ((idx & 1) == 0) fb[byteIndex] = (fb[byteIndex] & 0xF0) | (gray & 0x0F);
-  else fb[byteIndex] = (fb[byteIndex] & 0x0F) | (gray << 4);
+  fb[byteIndex] = pack4bppPixel(fb[byteIndex], idx, gray);
 }
-#endif
 }
 
 bool BoardHAL::begin() {
@@ -44,21 +46,31 @@ bool BoardHAL::begin() {
   _lowlight.enabled = false;
   _lowlight.backlightOn = false;
   applyBacklightState();
-  beginSD();
-#if PAPERGO_HAS_EPDIY
+  // Bring up the panel first and force a known-good smoke frame before other services.
   epd_init(&epd_board_v7, &ED047TC1, EPD_LUT_64K);
   g_hl = epd_hl_init(kWaveform);
   epd_set_rotation(EPD_ROT_LANDSCAPE);
   epd_set_lcd_pixel_clock_MHz(17);
+  const int rotatedW = epd_rotated_display_width();
+  const int rotatedH = epd_rotated_display_height();
+  g_fbWidth = rotatedW;
+  g_fbHeight = rotatedH;
+  Serial.printf("EPD rotated size: %dx%d\n", rotatedW, rotatedH);
+  if (rotatedW != BoardConfig::SCREEN_W || rotatedH != BoardConfig::SCREEN_H) {
+    Serial.printf("EPD size mismatch: expected %dx%d\n", BoardConfig::SCREEN_W, BoardConfig::SCREEN_H);
+  }
   epd_poweron();
   epd_clear();
   epd_poweroff();
   g_displayReady = true;
+  clear(15);
+  fillRect(40, 40, 300, 120, 0);
+  drawText(60, 80, "PAPER GO", 15, 3);
+  endFrame(true);
+  g_bootSplashDrawn = true;
   Serial.println("EPD init: ok");
-#else
-  Serial.println("EPD init: skipped (no compatible epdiy headers found)");
-#endif
-  Serial.println("T5 Field OS HAL online");
+  beginSD();
+  Serial.printf("T5 Field OS HAL online (boot splash: %s)\n", g_bootSplashDrawn ? "drawn" : "not-drawn");
   return true;
 }
 
@@ -70,31 +82,25 @@ bool BoardHAL::beginSD() {
 
 void BoardHAL::beginFrame() {}
 void BoardHAL::endFrame(bool fullRefresh) {
-#if PAPERGO_HAS_EPDIY
   if (!g_displayReady) return;
   epd_poweron();
-  epd_hl_update_screen(&g_hl, fullRefresh ? MODE_GC16 : MODE_GL16, epd_ambient_temperature());
+  const int mode = selectDisplayUpdateMode(fullRefresh, MODE_GC16, MODE_GL16);
+  epd_hl_update_screen(&g_hl, static_cast<enum EpdDrawMode>(mode), epd_ambient_temperature());
   epd_poweroff();
-
-#endif
 }
 
 void BoardHAL::clear(uint8_t gray) {
   uint8_t safeGray = clampGrayLevel(gray);
-#if PAPERGO_HAS_EPDIY
-  for (int y = 0; y < BoardConfig::SCREEN_H; ++y) for (int x = 0; x < BoardConfig::SCREEN_W; ++x) setPixel4bpp(x,y,safeGray);
-
-#endif
+  const int h = g_fbHeight;
+  const int w = g_fbWidth;
+  for (int y = 0; y < h; ++y) for (int x = 0; x < w; ++x) setPixel4bpp(x,y,safeGray);
 }
 
 void BoardHAL::fillRect(int x,int y,int w,int h,uint8_t gray) {
   RenderRect rect{x,y,w,h};
-  if (!clipRectToDisplay(rect)) return;
+  if (!clipRectToFramebuffer(rect, g_fbWidth, g_fbHeight)) return;
   uint8_t safeGray = clampGrayLevel(gray);
-#if PAPERGO_HAS_EPDIY
   for (int yy = rect.y; yy < rect.y + rect.h; ++yy) for (int xx = rect.x; xx < rect.x + rect.w; ++xx) setPixel4bpp(xx,yy,safeGray);
-
-#endif
 }
 
 void BoardHAL::drawRect(int x,int y,int w,int h,uint8_t gray) {
@@ -117,15 +123,13 @@ void BoardHAL::drawText(int x,int y,const String& text,uint8_t gray,uint8_t size
   }
 }
 void BoardHAL::drawLine(int x1,int y1,int x2,int y2,uint8_t gray) {
-  if (!clipLineToDisplay(x1, y1, x2, y2)) return;
+  if (!clipLineToFramebuffer(x1, y1, x2, y2, g_fbWidth, g_fbHeight)) return;
   uint8_t safeGray = clampGrayLevel(gray);
   int dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
   int dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
   int err = dx + dy;
   while (true) {
-#if PAPERGO_HAS_EPDIY
     setPixel4bpp(x1, y1, safeGray);
-#endif
     if (x1 == x2 && y1 == y2) break;
     int e2 = 2 * err;
     if (e2 >= dy) { err += dy; x1 += sx; }
@@ -145,6 +149,9 @@ void BoardHAL::setPowerButtonSample(bool pressed) { _powerButtonOverride = true;
 void BoardHAL::setTouchSampleTwoPoint(bool touching, int16_t x1, int16_t y1, int16_t x2, int16_t y2) { _touchTwoPoint = true; _touching = touching; _touchX = x1; _touchY = y1; _touchX2 = x2; _touchY2 = y2; }
 BatteryStatus BoardHAL::battery() { BatteryStatus b; b.percent = -1; b.charging = false; return b; }
 void BoardHAL::sleepSeconds(uint32_t seconds) { esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL); esp_deep_sleep_start(); }
-void BoardHAL::setLowlightMode(bool enabled) { _lowlight.enabled = enabled; if (!enabled) _lowlight.backlightOn = true; applyBacklightState(); }
+void BoardHAL::setLowlightMode(bool enabled) {
+  setLowlightMode(_lowlight, enabled);
+  applyBacklightState();
+}
 void BoardHAL::toggleBacklight() { toggleLowlightBacklight(_lowlight); applyBacklightState(); }
 void BoardHAL::applyBacklightState() { digitalWrite(BoardConfig::PIN_BL_EN, shouldBacklightBeOn(_lowlight) ? HIGH : LOW); Serial.printf("[BACKLIGHT] lowlight=%s state=%s pin=%d\n", _lowlight.enabled ? "on" : "off", shouldBacklightBeOn(_lowlight) ? "on" : "off", BoardConfig::PIN_BL_EN); }
