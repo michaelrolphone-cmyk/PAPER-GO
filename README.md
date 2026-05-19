@@ -210,9 +210,20 @@ Springboard launcher gestures:
 
 Each Radio Scanner run writes a timestamped scan log under `/radio/scans/scan-<millis>.log` including signal fields and GPS coordinates when a fix is available.
 
-## Weather cache format
+## Weather config and cache format
 
-`/cache/weather/current.json` expected schema:
+Create `/config/weather.json` to enable live weather fetch by GPS location:
+
+```json
+{
+  "urlTemplate": "https://your-weather-provider.example/current?lat={lat}&lon={lon}",
+  "timeoutMs": 5000
+}
+```
+
+`urlTemplate` must include both `{lat}` and `{lon}` placeholders.
+
+The Weather app fetches when GPS fix and Wi-Fi are both available, extracts a summary from the provider response (`summary` field, or `current_weather.temperature` fallback), and writes `/cache/weather/current.json`:
 
 ```json
 {
@@ -253,9 +264,12 @@ Radio Scanner BLE entries now include advertisement summary with RSSI, service U
 
 Lock screen now renders UTC time/date from GPS epoch when available, GPS state, battery status, and a live cache-derived map preview summary (tile path resolution + cached/uncached state).
 
-## File Explorer ordering
+## File Explorer navigation
 
-File Explorer lists directory entries sorted with directories first, then alphabetical names, to improve navigation on e-paper.
+File Explorer lists directory entries sorted with directories first, then alphabetical names, and now supports tap navigation:
+- Tap a folder entry to enter it.
+- Tap `..` to navigate to the parent directory.
+- Tap a file entry to show its selected full path on-screen.
 
 ## GPS best-fit
 

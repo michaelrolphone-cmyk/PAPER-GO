@@ -11,3 +11,16 @@ void sortFileEntries(std::vector<FileEntryView>& entries) {
 String formatFileEntry(const FileEntryView& e) {
   return String(e.isDir ? "[D] " : "[F] ") + e.name + "  " + String(e.size) + " bytes";
 }
+
+String parentPath(const String& currentPath) {
+  if (currentPath.length() == 0 || currentPath == "/") return "/";
+  int lastSlash = currentPath.lastIndexOf('/');
+  if (lastSlash <= 0) return "/";
+  return currentPath.substring(0, lastSlash);
+}
+
+String joinPath(const String& base, const String& name) {
+  if (name.length() == 0) return base.length() ? base : String("/");
+  if (base.length() == 0 || base == "/") return String("/") + name;
+  return base + "/" + name;
+}
