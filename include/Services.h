@@ -30,16 +30,23 @@ private:
   void updateBestFit();
 };
 
+class CacheService;
+
 class NetworkService {
 public:
   bool begin();
+  void attachCache(CacheService* cache);
   void update();
   bool connectSaved();
   bool connect(const String& ssid, const String& pass);
+  bool disconnect();
+  bool forgetSaved();
+  bool saveCredentials(const String& ssid, const String& pass);
   std::vector<RadioSignal> scanWifi();
   NetStatus status() const;
 private:
   NetStatus _status;
+  CacheService* _cache = nullptr;
 };
 
 class CacheService {
