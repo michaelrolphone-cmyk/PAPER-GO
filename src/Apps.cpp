@@ -15,6 +15,7 @@
 #include "LockScreenLogic.h"
 #include "MapTileLogic.h"
 #include "ScaffoldNoticeLogic.h"
+#include "GamesUiLogic.h"
 
 void SimpleListApp::titleBar(SystemServices& s, const String& t) {
   s.board->fillRect(0, BoardConfig::STATUS_BAR_H, BoardConfig::SCREEN_W, 40, 14);
@@ -445,5 +446,117 @@ void WeatherApp::render(SystemServices& s) {
 }
 void WebServerApp::render(SystemServices& s) { titleBar(s,"Web Server"); NetStatus ns=s.net->status(); s.board->drawText(20,110,String("Status: ")+(s.web->running()?"running":"stopped"),0,2); s.board->drawText(20,150,"IP: "+ns.ip.toString(),0,1); s.board->drawText(20,180,"Serving: /webroot",0,1); s.board->drawText(20,230,"Tap upper-left content area to toggle",5,1); }
 void WebServerApp::handleTouch(SystemServices& s, const TouchEvent& ev) { if(ev.type==TouchType::Tap){ if(s.web->running()) s.web->stop(); else s.web->start(); } }
-void GamesApp::render(SystemServices& s) { titleBar(s,"Games"); const char* g[]={"Chess","Go","Tic-Tac-Toe","Minesweeper"}; for(int i=0;i<4;i++){ int x=40+i*220; s.board->drawRect(x,140,180,140,0); s.board->drawText(x+20,200,g[i],0,2);} s.board->drawText(20,330,gamesAppNoticeText(),5,1); }
+void GamesApp::onStart(SystemServices& s) {
+  (void)s;
+  _screen = GameScreen::Menu;
+  _ttt.reset();
+  _mines.begin(8, 8, 10);
+  _chess.reset();
+  _go.begin(9);
+  _chessSelected = -1;
+}
+
+void GamesApp::render(SystemServices& s) {
+  titleBar(s,"Games");
+  if (_screen == GameScreen::Menu) {
+    const char* g[]={"Chess","Go","Tic-Tac-Toe","Minesweeper"};
+    for(int i=0;i<4;i++){ int x=40+i*220; s.board->drawRect(x,140,180,140,0); s.board->drawText(x+20,200,g[i],0,2);} 
+    s.board->drawText(20,330,"Tap a game tile to play.",0,1);
+    return;
+  }
+  if (_screen == GameScreen::TicTacToe) {
+    s.board->drawText(20,100,"Tic-Tac-Toe",0,2);
+    for (int i=0;i<9;i++) {
+      int x=40 + (i%3)*120, y=150 + (i/3)*120;
+      s.board->drawRect(x,y,100,100,0);
+      auto c=_ttt.cellAt(i);
+      if (c==TicTacToeGame::Cell::X) s.board->drawText(x+38,y+40,"X",0,2);
+      if (c==TicTacToeGame::Cell::O) s.board->drawText(x+38,y+40,"O",0,2);
+    }
+    s.board->drawText(420,160, String("Turn: ") + (_ttt.currentPlayer()==TicTacToeGame::Cell::X?"X":"O"),0,1);
+    s.board->drawText(420,190, String("State: ") + ticTacToeStateLabel(_ttt.state()),0,1);
+    s.board->drawText(420,220,"Tap top bar to menu",5,1);
+    return;
+  }
+  if (_screen == GameScreen::Minesweeper) {
+    s.board->drawText(20,100,"Minesweeper",0,2);
+    for (int y=0;y<8;y++) for (int x=0;x<8;x++) {
+      int px=40+x*55, py=140+y*55;
+      s.board->drawRect(px,py,50,50,0);
+      if (_mines.isFlagged(x,y)) s.board->drawText(px+16,py+18,"F",0,1);
+      if (_mines.isRevealed(x,y)) {
+        uint8_t n=_mines.adjacent(x,y);
+        s.board->drawText(px+16,py+18,n?String(n):".",0,1);
+      }
+    }
+    s.board->drawText(520,150,"Tap=reveal",0,1);
+    s.board->drawText(520,176,"Long=flag",0,1);
+    s.board->drawText(520,202, String("State: ") + minesweeperStateLabel(_mines.state()),0,1);
+    return;
+  }
+  if (_screen == GameScreen::Chess) {
+    s.board->drawText(20,100,"Chess",0,2);
+    for (int i=0;i<64;i++) {
+      int x=40+(i%8)*55,y=130+(i/8)*55;
+      s.board->drawRect(x,y,50,50,0);
+      auto sq=_chess.at(i);
+      const char* p="";
+      if (sq.piece==ChessGame::Piece::Pawn) p="P"; else if (sq.piece==ChessGame::Piece::Knight) p="N"; else if (sq.piece==ChessGame::Piece::Bishop) p="B"; else if (sq.piece==ChessGame::Piece::Rook) p="R"; else if (sq.piece==ChessGame::Piece::Queen) p="Q"; else if (sq.piece==ChessGame::Piece::King) p="K";
+      if (sq.piece!=ChessGame::Piece::Empty) s.board->drawText(x+14,y+18,p,sq.color==ChessGame::Color::Black?7:0,1);
+    }
+    s.board->drawText(520,140,_chessSelected>=0?"Select target":"Select piece",0,1);
+    return;
+  }
+  if (_screen == GameScreen::Go) {
+    s.board->drawText(20,100,"Go 9x9",0,2);
+    for(int y=0;y<9;y++) for(int x=0;x<9;x++) {
+      int px=60+x*50, py=150+y*50;
+      s.board->drawRect(px,py,40,40,0);
+      auto st=_go.at(x,y);
+      if(st==GoGame::Stone::Black) s.board->fillRect(px+10,py+10,20,20,0);
+      else if(st==GoGame::Stone::White){ s.board->drawRect(px+10,py+10,20,20,0); s.board->fillRect(px+11,py+11,18,18,15);}    
+    }
+    s.board->drawText(540,160,"Tap board",0,1);
+    s.board->drawText(540,185,"Long=pass",0,1);
+  }
+}
+
+void GamesApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
+  (void)s;
+  if (ev.type != TouchType::Tap && ev.type != TouchType::LongPress) return;
+  if (ev.y < 90) { _screen = GameScreen::Menu; return; }
+  if (_screen == GameScreen::Menu && ev.type == TouchType::Tap) {
+    GamesMenuSelection sel = gamesMenuSelectionAt(ev.x, ev.y);
+    if (sel == GamesMenuSelection::Chess) _screen = GameScreen::Chess;
+    else if (sel == GamesMenuSelection::Go) _screen = GameScreen::Go;
+    else if (sel == GamesMenuSelection::TicTacToe) _screen = GameScreen::TicTacToe;
+    else if (sel == GamesMenuSelection::Minesweeper) _screen = GameScreen::Minesweeper;
+    return;
+  }
+  if (_screen == GameScreen::TicTacToe && ev.type == TouchType::Tap) {
+    int8_t cell = ticTacToeCellAt(ev.x, ev.y);
+    if (cell >= 0) _ttt.playMove(static_cast<uint8_t>(cell));
+    return;
+  }
+  if (_screen == GameScreen::Minesweeper) {
+    uint8_t cx = 0, cy = 0;
+    if (minesweeperCellAt(ev.x, ev.y, cx, cy)) {
+      if (ev.type==TouchType::Tap) _mines.reveal(cx,cy); else _mines.toggleFlag(cx,cy);
+    }
+    return;
+  }
+  if (_screen == GameScreen::Chess && ev.type == TouchType::Tap) {
+    uint8_t idx = 0;
+    if (chessCellAt(ev.x, ev.y, idx)) {
+      if (_chessSelected < 0) _chessSelected = idx;
+      else { _chess.playMove(static_cast<uint8_t>(_chessSelected), idx); _chessSelected = -1; }
+    }
+    return;
+  }
+  if (_screen == GameScreen::Go) {
+    if (ev.type==TouchType::LongPress) { _go.pass(); return; }
+    uint8_t cx = 0, cy = 0;
+    if (goCellAt(ev.x, ev.y, cx, cy)) _go.place(cx,cy);
+  }
+}
 void SettingsApp::render(SystemServices& s) { titleBar(s,"Settings"); int y=110; s.board->drawText(20,y,settingsAppNoticeText(),5,2); y+=34; s.board->drawText(20,y,"Planned sections: Wi-Fi, GPS, LoRa, Display, Cache, Power, About",0,1); y+=26; s.board->drawText(20,y,"Diagnostics screens are scaffold-only in this build.",0,1); }
