@@ -3,10 +3,17 @@
 static const int16_t TAP_MOVE_THRESHOLD = 12;
 static const int16_t SWIPE_THRESHOLD = 50;
 static const uint32_t LONG_PRESS_MS = 650;
+static const int16_t PINCH_THRESHOLD = 24;
+
+static int16_t manhattanDistance(int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
+  return abs(x2 - x1) + abs(y2 - y1);
+}
 
 void TouchClassifier::reset() {
   _active = false;
   _longPressEmitted = false;
+  _twoPointActive = false;
+  _twoPointStartDistance = 0;
 }
 
 TouchEvent TouchClassifier::update(bool touching, int16_t x, int16_t y, uint32_t nowMs) {
@@ -77,5 +84,33 @@ TouchEvent TouchClassifier::update(bool touching, int16_t x, int16_t y, uint32_t
     }
   }
 
+  return ev;
+}
+
+TouchEvent TouchClassifier::updateTwoPoint(bool touching, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t nowMs) {
+  (void)nowMs;
+  TouchEvent ev{};
+  ev.touchPoints = touching ? 2 : 0;
+  ev.x = (x1 + x2) / 2;
+  ev.y = (y1 + y2) / 2;
+
+  if (touching && !_twoPointActive) {
+    _twoPointActive = true;
+    _twoPointStartDistance = manhattanDistance(x1, y1, x2, y2);
+    ev.active = true;
+    return ev;
+  }
+  if (touching && _twoPointActive) {
+    int16_t d = manhattanDistance(x1, y1, x2, y2);
+    ev.pinchDelta = d - _twoPointStartDistance;
+    ev.active = true;
+    if (ev.pinchDelta >= PINCH_THRESHOLD) ev.type = TouchType::PinchOut;
+    else if (ev.pinchDelta <= -PINCH_THRESHOLD) ev.type = TouchType::PinchIn;
+    return ev;
+  }
+  if (!touching && _twoPointActive) {
+    _twoPointActive = false;
+    _twoPointStartDistance = 0;
+  }
   return ev;
 }

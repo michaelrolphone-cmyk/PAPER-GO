@@ -1,8 +1,17 @@
 #pragma once
 #include <Arduino.h>
 
-enum class TouchType { None, Tap, LongPress, SwipeLeft, SwipeRight, SwipeUp, SwipeDown, Drag };
-struct TouchEvent { TouchType type = TouchType::None; int16_t x = 0; int16_t y = 0; int16_t dx = 0; int16_t dy = 0; bool active = false; };
+enum class TouchType { None, Tap, LongPress, SwipeLeft, SwipeRight, SwipeUp, SwipeDown, Drag, PinchIn, PinchOut };
+struct TouchEvent {
+  TouchType type = TouchType::None;
+  int16_t x = 0;
+  int16_t y = 0;
+  int16_t dx = 0;
+  int16_t dy = 0;
+  int16_t pinchDelta = 0;
+  uint8_t touchPoints = 0;
+  bool active = false;
+};
 
 struct GpsFix {
   bool valid = false;

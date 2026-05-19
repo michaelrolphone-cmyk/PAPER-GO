@@ -5,6 +5,7 @@ class TouchClassifier {
 public:
   void reset();
   TouchEvent update(bool touching, int16_t x, int16_t y, uint32_t nowMs);
+  TouchEvent updateTwoPoint(bool touching, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t nowMs);
 private:
   bool _active = false;
   int16_t _startX = 0;
@@ -13,4 +14,6 @@ private:
   int16_t _lastY = 0;
   uint32_t _startMs = 0;
   bool _longPressEmitted = false;
+  bool _twoPointActive = false;
+  int16_t _twoPointStartDistance = 0;
 };

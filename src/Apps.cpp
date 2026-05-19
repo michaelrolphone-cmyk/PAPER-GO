@@ -10,6 +10,8 @@
 #include "TimeFormatLogic.h"
 #include "FileExplorerLogic.h"
 #include "MeshtasticLogic.h"
+#include "SpringboardLogic.h"
+#include "LockScreenLogic.h"
 
 void SimpleListApp::titleBar(SystemServices& s, const String& t) {
   s.board->fillRect(0, BoardConfig::STATUS_BAR_H, BoardConfig::SCREEN_W, 40, 14);
@@ -24,27 +26,65 @@ void SpringboardApp::onStart(SystemServices& s) {
     auto loaded = parseOrderedAppIds(cfg);
     if (!loaded.empty()) _orderedIds = loaded;
   }
+  _page = 0;
+  _showOptions = false;
+  _selectedIndex = -1;
 }
 
 void SpringboardApp::render(SystemServices& s) {
   s.board->clear(15);
   s.board->drawText(20, BoardConfig::STATUS_BAR_H + 18, "T5 Field OS", 0, 3);
+  const size_t pageSize = 15;
+  size_t pages = springboardPageCount(_orderedIds.size(), pageSize);
+  if (_page >= pages && pages > 0) _page = pages - 1;
+  size_t start = springboardPageStart(_page, pageSize);
+  size_t end = min(start + pageSize, _orderedIds.size());
   const int cols=5, cellW=180, cellH=130, startX=25, startY=105;
-  for(size_t i=0;i<_orderedIds.size();i++) {
-    int c=i%cols, r=i/cols, x=startX+c*cellW, y=startY+r*cellH;
+  for(size_t i=start;i<end;i++) {
+    size_t local = i - start;
+    int c=local%cols, r=local/cols, x=startX+c*cellW, y=startY+r*cellH;
     s.board->drawRect(x,y,150,100,0);
     String appId = _orderedIds[i];
     s.board->drawText(x+18,y+30,appDisplayNameById(appId).substring(0,10),0,2);
     s.board->drawText(x+18,y+70,appId,7,1);
   }
+  s.board->drawText(20, 510, String("Page ") + String(_page + 1) + "/" + String(max((size_t)1, pages)) + " swipe left/right", 0, 1);
+  if (_showOptions && _selectedIndex >= 0 && _selectedIndex < (int)_orderedIds.size()) {
+    s.board->fillRect(250, 190, 460, 180, 13);
+    s.board->drawRect(250, 190, 460, 180, 0);
+    s.board->drawText(270, 220, "App options", 0, 2);
+    s.board->drawText(270, 260, "Selected: " + _orderedIds[_selectedIndex], 0, 1);
+    s.board->drawText(270, 295, "Tap here to Move to Front", 0, 1);
+  }
 }
 void SpringboardApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
+  const size_t pageSize = 15;
+  size_t pages = springboardPageCount(_orderedIds.size(), pageSize);
+  if (ev.type == TouchType::SwipeLeft && _page + 1 < pages) { _page++; return; }
+  if (ev.type == TouchType::SwipeRight && _page > 0) { _page--; return; }
+
+  if (ev.type == TouchType::LongPress) {
+    int idx = springboardTappedIndexForPage(ev.x, ev.y, _page, pageSize);
+    if (idx >= 0 && idx < (int)_orderedIds.size()) {
+      _selectedIndex = idx;
+      _showOptions = true;
+    }
+    return;
+  }
+
   if(ev.type!=TouchType::Tap) return;
-  const int cols=5, cellW=180, cellH=130, startX=25, startY=105;
-  int c=(ev.x-startX)/cellW, r=(ev.y-startY)/cellH;
-  if(c<0||c>=cols||r<0) return;
-  int i=r*cols+c;
-  if(i>=0 && i<(int)_orderedIds.size()) s.requestOpenApp = _orderedIds[i];
+
+  if (_showOptions) {
+    if (ev.x >= 270 && ev.x <= 660 && ev.y >= 280 && ev.y <= 320 && _selectedIndex >= 0) {
+      springboardMoveAppToFront(_orderedIds, static_cast<size_t>(_selectedIndex));
+    }
+    _showOptions = false;
+    _selectedIndex = -1;
+    return;
+  }
+
+  int idx = springboardTappedIndexForPage(ev.x, ev.y, _page, pageSize);
+  if(idx>=0 && idx<(int)_orderedIds.size()) s.requestOpenApp = _orderedIds[idx];
 }
 
 void LockScreenApp::render(SystemServices& s) {
@@ -60,9 +100,11 @@ void LockScreenApp::render(SystemServices& s) {
 
   s.board->drawRect(40,220,420,240,0);
   s.board->drawText(60,250,"Cached map preview",0,2);
-  if(f.valid) s.board->drawText(60,300,String(f.lat,6)+", "+String(f.lon,6),0,1);
-  else s.board->drawText(60,300,"Last known coordinates unavailable",4,1);
-  s.board->drawText(60,335,"Location source: GPS",0,1);
+  String tilePath = lockScreenMapTilePath(f);
+  bool hasTile = s.cache && tilePath.length() && s.cache->hasFile(tilePath);
+  LockScreenPreviewInfo preview = buildLockScreenPreviewInfo(f, hasTile);
+  s.board->drawText(60,300,preview.summary,0,1);
+  s.board->drawText(60,335,String("Cache: ") + cacheCoverageLabel(preview.coverage), hasTile ? 0 : 5, 1);
 
   s.board->drawText(40,500,"Tap/gesture to unlock",0,1);
 }

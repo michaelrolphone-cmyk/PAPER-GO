@@ -103,7 +103,9 @@ When Web Server app is running, these HTTP endpoints are available:
 
 - `GET /api/health` → health JSON for web service.
 - `GET /api/apps/order` → returns `/config/apps.json` contents if present.
-- `GET /api/status` → current device snapshot (wifi/ip/gps/battery/sd/web flags).
+- `GET /api/status` → current device snapshot (wifi/ip/gps/battery/sd/web flags plus `unreadMessages` and `cacheActivity` indicators).
+  - `unreadMessages` is `true` when one or more files are present in `/meshtastic/messages`.
+  - `cacheActivity` is `true` when map-cache lookups occurred within the last 5 minutes.
 - `GET /api/weather/cache` → returns `/cache/weather/current.json` when cached weather exists.
 - `GET /api/cache/stats` → map cache hit/miss counters.
 - `GET /api/radio/scans` → lists files under `/radio/scans`.
@@ -119,10 +121,15 @@ curl http://<device-ip>/api/health
 ## Touch gesture support
 
 Gesture classification now supports: tap, long-press, drag, swipe-left/right/up/down (via `TouchClassifier`, used by `BoardHAL::pollTouch`).
+Two-point touch is integrated with the touch classifier and emits `PinchIn`/`PinchOut` events via `BoardHAL::setTouchSampleTwoPoint(...)` and `BoardHAL::pollTouch()`.
 
 ## Swipe navigation
 
 Global gestures: swipe-down returns to springboard (Home), swipe-right returns to previous app (Back stack).
+
+Springboard launcher gestures:
+- Swipe left/right to move between app pages when there are more than 15 apps.
+- Long-press an app tile to open app options, then tap "Move to Front" to pin it to the first slot.
 
 ## Radio scan logs
 
@@ -168,7 +175,7 @@ Radio Scanner BLE entries now include advertisement summary with RSSI, service U
 
 ## Lock screen fields
 
-Lock screen now renders UTC time/date from GPS epoch when available, GPS state, battery status, and coordinate summary.
+Lock screen now renders UTC time/date from GPS epoch when available, GPS state, battery status, and a live cache-derived map preview summary (tile path resolution + cached/uncached state).
 
 ## File Explorer ordering
 

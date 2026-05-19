@@ -27,11 +27,23 @@ void BoardHAL::fillRect(int x,int y,int w,int h,uint8_t gray) { Serial.printf("[
 void BoardHAL::drawRect(int x,int y,int w,int h,uint8_t gray) { Serial.printf("[RECT] %d,%d %dx%d g%u\n",x,y,w,h,gray); }
 void BoardHAL::drawText(int x,int y,const String& text,uint8_t gray,uint8_t size) { Serial.printf("[TEXT] %d,%d g%u s%u %s\n",x,y,gray,size,text.c_str()); }
 void BoardHAL::drawLine(int x1,int y1,int x2,int y2,uint8_t gray) { Serial.printf("[LINE] %d,%d -> %d,%d g%u\n",x1,y1,x2,y2,gray); }
-TouchEvent BoardHAL::pollTouch() { return _touchClassifier.update(_touching, _touchX, _touchY, millis()); }
+TouchEvent BoardHAL::pollTouch() {
+  if (_touchTwoPoint) return _touchClassifier.updateTwoPoint(_touching, _touchX, _touchY, _touchX2, _touchY2, millis());
+  return _touchClassifier.update(_touching, _touchX, _touchY, millis());
+}
 void BoardHAL::setTouchSample(bool touching, int16_t x, int16_t y) {
+  _touchTwoPoint = false;
   _touching = touching;
   _touchX = x;
   _touchY = y;
+}
+void BoardHAL::setTouchSampleTwoPoint(bool touching, int16_t x1, int16_t y1, int16_t x2, int16_t y2) {
+  _touchTwoPoint = true;
+  _touching = touching;
+  _touchX = x1;
+  _touchY = y1;
+  _touchX2 = x2;
+  _touchY2 = y2;
 }
 
 BatteryStatus BoardHAL::battery() {

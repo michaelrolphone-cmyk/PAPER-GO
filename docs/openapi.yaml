@@ -11,7 +11,8 @@ paths:
           description: OK
   /api/status:
     get:
-      summary: Device status snapshot
+      summary: Device status snapshot including unread message and cache activity indicators
+      description: unreadMessages is derived from /meshtastic/messages file count; cacheActivity indicates map-cache lookup activity within a recent window.
       responses:
         '200':
           description: Current status JSON

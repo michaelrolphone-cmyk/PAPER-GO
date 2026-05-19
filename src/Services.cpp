@@ -89,6 +89,7 @@ void CacheService::appendLog(const String& name, const String& line) { File f=SD
 void CacheService::recordMapCacheLookup(bool hit) {
   if (hit) _mapCacheHits++;
   else _mapCacheMisses++;
+  _lastMapCacheLookupMs = millis();
   appendLog("map_cache.log", String(hit ? "hit" : "miss") + ",hits=" + String(_mapCacheHits) + ",misses=" + String(_mapCacheMisses));
 }
 
@@ -144,7 +145,12 @@ void WebServerService::start() {
   if (_running) return;
   _server.on("/api/health", [this](){ _server.send(200, "application/json", "{"ok":true,"service":"web"}"); });  _server.on("/api/status", [this](){
     if (!_board || !_gps || !_net) { _server.send(503, "application/json", "{"error":"status context unavailable"}"); return; }
-    String body = buildStatusApiJson(_net->status(), _gps->fix(), _board->battery(), _board->sdMounted(), _running);
+    size_t msgCount = 0;
+    File msgDir = SD.open("/meshtastic/messages");
+    if (msgDir) { File f = msgDir.openNextFile(); while (f) { msgCount++; f = msgDir.openNextFile(); } msgDir.close(); }
+    const bool unreadMessages = hasUnreadMeshtasticMessages(msgCount);
+    const bool cacheActivity = _cache && hasRecentCacheActivity(_cache->lastMapCacheLookupMs(), millis(), 5UL * 60UL * 1000UL);
+    String body = buildStatusApiJson(_net->status(), _gps->fix(), _board->battery(), _board->sdMounted(), _running, unreadMessages, cacheActivity);
     _server.send(200, "application/json", body);
   });
   _server.on("/api/cache/stats", [this](){

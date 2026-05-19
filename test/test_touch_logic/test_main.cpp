@@ -32,11 +32,26 @@ void test_drag_event_while_active() {
   TEST_ASSERT_EQUAL(5, move.dy);
 }
 
+void test_two_point_pinch_out_and_in() {
+  TouchClassifier c;
+  c.updateTwoPoint(true, 100, 100, 120, 120, 0);
+  TouchEvent out = c.updateTwoPoint(true, 90, 90, 140, 140, 30);
+  TEST_ASSERT_EQUAL(TouchType::PinchOut, out.type);
+  TEST_ASSERT_EQUAL(2, out.touchPoints);
+
+  TouchClassifier c2;
+  c2.updateTwoPoint(true, 80, 80, 160, 160, 0);
+  TouchEvent in = c2.updateTwoPoint(true, 105, 105, 135, 135, 30);
+  TEST_ASSERT_EQUAL(TouchType::PinchIn, in.type);
+  TEST_ASSERT_EQUAL(2, in.touchPoints);
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_tap_classification);
   RUN_TEST(test_swipe_left_classification);
   RUN_TEST(test_long_press_classification);
   RUN_TEST(test_drag_event_while_active);
+  RUN_TEST(test_two_point_pinch_out_and_in);
   return UNITY_END();
 }
