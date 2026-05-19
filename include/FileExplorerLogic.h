@@ -10,3 +10,5 @@ struct FileEntryView {
 
 void sortFileEntries(std::vector<FileEntryView>& entries);
 String formatFileEntry(const FileEntryView& e);
+String parentPath(const String& currentPath);
+String joinPath(const String& base, const String& name);

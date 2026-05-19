@@ -5,6 +5,7 @@
 #include "MapCacheLogic.h"
 #include "RadioLogLogic.h"
 #include "WeatherLogic.h"
+#include "WeatherFetchLogic.h"
 #include "UrlFetcherLogic.h"
 #include "MarkdownLogic.h"
 #include "TimeFormatLogic.h"
@@ -12,6 +13,8 @@
 #include "MeshtasticLogic.h"
 #include "SpringboardLogic.h"
 #include "LockScreenLogic.h"
+#include "MapTileLogic.h"
+#include "ScaffoldNoticeLogic.h"
 
 void SimpleListApp::titleBar(SystemServices& s, const String& t) {
   s.board->fillRect(0, BoardConfig::STATUS_BAR_H, BoardConfig::SCREEN_W, 40, 14);
@@ -147,7 +150,8 @@ void GpsMapApp::render(SystemServices& s) {
   titleBar(s, "GPS Map");
   GpsFix f=s.gps->fix();
   s.board->drawRect(20,95,620,390,0);
-  s.board->drawText(260,280,"MAP TILE AREA",7,2);
+  s.board->drawText(220,280,"MAP PREVIEW UNAVAILABLE",7,2);
+  s.board->drawText(220,312,mapAppNoticeText(),5,1);
   s.board->drawLine(330,290,370,290,0); s.board->drawLine(350,270,350,310,0);
   int x=670, y=105;
   s.board->drawText(x,y,"Fix",0,2); y+=35;
@@ -161,10 +165,25 @@ void GpsMapApp::render(SystemServices& s) {
   if(s.gps->headingReliable()) s.board->drawText(x,y,"Heading: "+String(s.gps->computedHeadingDeg(),0),0,1);
   else s.board->drawText(x,y,"Heading: moving only",5,1);
   y+=35;
-  bool hasCenterTile = s.cache && s.cache->hasFile(s.cache->mapTilePath("default", 12, 0, 0));
-  if (s.cache) s.cache->recordMapCacheLookup(hasCenterTile);
-  CacheCoverageState coverage = deriveCacheCoverageState(1, hasCenterTile ? 1 : 0);
-  s.board->drawText(x,y,"Tiles: "+String(cacheCoverageLabel(coverage)),0,1); y+=22;
+  MapTileCoord center = mapTileFromFix(f.valid ? f : bf, 12);
+  s.board->drawText(x,y,"Tile: " + mapTileLabel(center),0,1); y+=22;
+  uint16_t totalTiles = 0;
+  uint16_t cachedTiles = 0;
+  if (s.cache && center.valid) {
+    for (int dy=-1; dy<=1; ++dy) {
+      for (int dx=-1; dx<=1; ++dx) {
+        int32_t tx = center.x + dx;
+        int32_t ty = center.y + dy;
+        if (tx < 0 || ty < 0) continue;
+        ++totalTiles;
+        bool hit = s.cache->hasFile(s.cache->mapTilePath("default", center.zoom, (uint32_t)tx, (uint32_t)ty));
+        if (hit) ++cachedTiles;
+        s.cache->recordMapCacheLookup(hit);
+      }
+    }
+  }
+  CacheCoverageState coverage = deriveCacheCoverageState(totalTiles, cachedTiles);
+  s.board->drawText(x,y,"Tiles: "+String(cacheCoverageLabel(coverage))+" ("+String(cachedTiles)+"/"+String(totalTiles)+")",0,1); y+=22;
   if (s.cache) s.board->drawText(x,y,"Cache H/M: "+String(s.cache->mapCacheHitCount())+"/"+String(s.cache->mapCacheMissCount()),0,1);
   else s.board->drawText(x,y,"Cache service unavailable",5,1);
 }
@@ -207,7 +226,7 @@ void MeshtasticApp::render(SystemServices& s) {
   s.board->drawText(20,110,"Meshtastic storage boundary active.",0,2);
   s.board->drawText(20,150,"Storage: /meshtastic/messages /nodes /config",0,1);
   s.board->drawText(20,180,formatMeshtasticStorageStatus(msgCount, nodeCount),0,1);
-  s.board->drawText(20,210,"Next: protocol + mesh transport integration.",0,1);
+  s.board->drawText(20,210,meshtasticAppNoticeText(),5,1);
 }
 void UrlFetcherApp::onStart(SystemServices& s) {
   _status = "No config";
@@ -312,22 +331,95 @@ void FileExplorerApp::render(SystemServices& s) {
   root.close();
 
   sortFileEntries(entries);
+  if (_path != "/") {
+    s.board->drawText(20, y, "[D] ..", 0, 1);
+    y += 22;
+  }
   for (auto& e : entries) {
-    if (y >= 520) break;
+    if (y >= 498) break;
     s.board->drawText(20, y, formatFileEntry(e), 0, 1);
     y += 22;
+  }
+  s.board->drawText(20, 510, "Tap folder to enter, tap file to preview path", 0, 1);
+}
+
+void FileExplorerApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
+  if (ev.type != TouchType::Tap || !s.board->sdMounted()) return;
+  if (ev.y < 105 || ev.y > 498) return;
+
+  File root = SD.open(_path);
+  if (!root) return;
+  std::vector<FileEntryView> entries;
+  File file=root.openNextFile();
+  while(file){
+    FileEntryView e;
+    e.name = file.name();
+    e.isDir = file.isDirectory();
+    e.size = file.size();
+    entries.push_back(e);
+    file = root.openNextFile();
+  }
+  root.close();
+  sortFileEntries(entries);
+
+  int row = (ev.y - 105) / 22;
+  int idx = row;
+  if (_path != "/") {
+    if (row == 0) {
+      _path = parentPath(_path);
+      return;
+    }
+    idx = row - 1;
+  }
+  if (idx < 0 || idx >= (int)entries.size()) return;
+
+  const FileEntryView& sel = entries[idx];
+  if (sel.isDir) {
+    _path = joinPath(_path, sel.name);
+  } else {
+    String filePath = joinPath(_path, sel.name);
+    s.board->drawText(20, 510, "Selected: " + filePath, 0, 1);
   }
 }
 
 void WeatherApp::render(SystemServices& s) {
   titleBar(s,"Weather");
-  s.board->drawText(20,110,"Current weather + 5-day forecast by GPS location.",0,1);
+  s.board->drawText(20,110,"Weather by GPS location",0,1);
   s.board->drawText(20,140,"Cache file: /cache/weather/current.json",0,1);
   s.board->drawRect(20,180,880,260,0);
 
   if (!s.cache) {
     s.board->drawText(50,220,"Cache service unavailable.",5,2);
     return;
+  }
+
+  GpsFix fix = s.gps ? s.gps->fix() : GpsFix{};
+  String status = "cache-only";
+  if (fix.valid && s.net && s.net->status().wifi) {
+    String cfgRaw = s.cache->readText("/config/weather.json", 2048);
+    WeatherFetchConfig cfg = parseWeatherFetchConfig(cfgRaw);
+    String url = buildWeatherUrl(cfg, fix);
+    if (url.length()) {
+      HTTPClient http;
+      http.setTimeout(cfg.timeoutMs);
+      if (http.begin(url)) {
+        int code = http.GET();
+        if (code > 0) {
+          String body = http.getString();
+          String summary = extractWeatherSummary(body);
+          uint64_t epoch = fix.epoch ? fix.epoch : (uint64_t)(millis() / 1000);
+          s.cache->writeText("/cache/weather/current.json", buildWeatherCacheJson(epoch, summary));
+          status = "fetched";
+        } else {
+          status = "http get failed";
+        }
+        http.end();
+      } else {
+        status = "http begin failed";
+      }
+    } else {
+      status = "invalid /config/weather.json";
+    }
   }
 
   String raw = s.cache->readText("/cache/weather/current.json", 4096);
@@ -339,11 +431,12 @@ void WeatherApp::render(SystemServices& s) {
 
   uint64_t nowEpoch = s.gps ? s.gps->fix().epoch : 0;
   bool stale = isWeatherCacheStale(nowEpoch, info.fetchedEpoch, 1800);
+  s.board->drawText(50,190, String("Fetch: ") + status, 0, 1);
   s.board->drawText(50,220, String("Summary: ") + info.summary, 0, 1);
   s.board->drawText(50,250, String("Fetched: ") + String((uint32_t)info.fetchedEpoch), 0, 1);
   s.board->drawText(50,280, String("State: ") + (stale ? "STALE" : "FRESH"), stale ? 5 : 0, 2);
 }
 void WebServerApp::render(SystemServices& s) { titleBar(s,"Web Server"); NetStatus ns=s.net->status(); s.board->drawText(20,110,String("Status: ")+(s.web->running()?"running":"stopped"),0,2); s.board->drawText(20,150,"IP: "+ns.ip.toString(),0,1); s.board->drawText(20,180,"Serving: /webroot",0,1); s.board->drawText(20,230,"Tap upper-left content area to toggle",5,1); }
 void WebServerApp::handleTouch(SystemServices& s, const TouchEvent& ev) { if(ev.type==TouchType::Tap){ if(s.web->running()) s.web->stop(); else s.web->start(); } }
-void GamesApp::render(SystemServices& s) { titleBar(s,"Games"); const char* g[]={"Chess","Go","Tic-Tac-Toe","Minesweeper"}; for(int i=0;i<4;i++){ int x=40+i*220; s.board->drawRect(x,140,180,140,0); s.board->drawText(x+20,200,g[i],0,2);} }
-void SettingsApp::render(SystemServices& s) { titleBar(s,"Settings"); int y=110; s.board->drawText(20,y,"Wi-Fi / GPS / LoRa / Display / Cache / Power / About",0,1); y+=30; s.board->drawText(20,y,"Developer mode: diagnostics for GPS, LoRa, display, touch, battery, SD",0,1); }
+void GamesApp::render(SystemServices& s) { titleBar(s,"Games"); const char* g[]={"Chess","Go","Tic-Tac-Toe","Minesweeper"}; for(int i=0;i<4;i++){ int x=40+i*220; s.board->drawRect(x,140,180,140,0); s.board->drawText(x+20,200,g[i],0,2);} s.board->drawText(20,330,gamesAppNoticeText(),5,1); }
+void SettingsApp::render(SystemServices& s) { titleBar(s,"Settings"); int y=110; s.board->drawText(20,y,settingsAppNoticeText(),5,2); y+=34; s.board->drawText(20,y,"Planned sections: Wi-Fi, GPS, LoRa, Display, Cache, Power, About",0,1); y+=26; s.board->drawText(20,y,"Diagnostics screens are scaffold-only in this build.",0,1); }

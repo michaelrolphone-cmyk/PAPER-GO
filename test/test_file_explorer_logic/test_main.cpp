@@ -21,9 +21,22 @@ void test_format_entry() {
   TEST_ASSERT_EQUAL_STRING("[D] docs  0 bytes", formatFileEntry(d).c_str());
 }
 
+void test_parent_path() {
+  TEST_ASSERT_EQUAL_STRING("/", parentPath("/").c_str());
+  TEST_ASSERT_EQUAL_STRING("/", parentPath("/docs").c_str());
+  TEST_ASSERT_EQUAL_STRING("/docs", parentPath("/docs/work").c_str());
+}
+
+void test_join_path() {
+  TEST_ASSERT_EQUAL_STRING("/alpha", joinPath("/", "alpha").c_str());
+  TEST_ASSERT_EQUAL_STRING("/docs/work", joinPath("/docs", "work").c_str());
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_sort_dirs_first_then_name);
   RUN_TEST(test_format_entry);
+  RUN_TEST(test_parent_path);
+  RUN_TEST(test_join_path);
   return UNITY_END();
 }

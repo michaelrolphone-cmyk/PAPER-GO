@@ -85,6 +85,7 @@ public:
   const char* id() const override { return "files"; }
   const char* title() const override { return "Files"; }
   void render(SystemServices& s) override;
+  void handleTouch(SystemServices& s, const TouchEvent& ev) override;
 private: String _path = "/";
 };
 class WeatherApp : public SimpleListApp {
