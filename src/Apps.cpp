@@ -220,7 +220,46 @@ void UrlFetcherApp::render(SystemServices& s) {
   s.board->drawRect(20,180,880,260,0);
   s.board->drawText(40,210,_preview.length() ? _preview : "No cached response.",0,1);
 }
-void MarkdownReaderApp::render(SystemServices& s) { titleBar(s,"Markdown Reader"); String sample="# Markdown Reader\n\n- headings\n- lists\n- code blocks\n- scroll state"; s.board->drawText(20,110,sample,0,1); }
+void MarkdownReaderApp::onStart(SystemServices& s) {
+  _startLine = 0;
+  _lastMaxStart = 0;
+}
+
+void MarkdownReaderApp::render(SystemServices& s) {
+  titleBar(s,"Markdown Reader");
+  String path = "/documents/markdown/readme.md";
+  if (!s.cache) {
+    s.board->drawText(20,110,"Cache service unavailable",5,1);
+    return;
+  }
+  String raw = s.cache->readText(path, 6000);
+  if (raw.length() == 0) {
+    s.board->drawText(20,110,"Missing file: " + path,5,1);
+    return;
+  }
+  String title = markdownTitle(raw);
+  String rendered = markdownRenderPreview(raw, 5000, 128, 56);
+  const size_t windowLines = 16;
+  _startLine = markdownClampStartLine(rendered, _startLine, windowLines);
+  int clampedEnd = markdownClampStartLine(rendered, INT32_MAX, windowLines);
+  _lastMaxStart = clampedEnd;
+  String preview = markdownWindow(rendered, _startLine, windowLines);
+  int totalPages = _lastMaxStart + 1;
+  int currentPage = _startLine + 1;
+  s.board->drawText(20,110,"File: " + path,0,1);
+  s.board->drawText(20,138,"Title: " + title + "  (" + String(currentPage) + "/" + String(totalPages) + ")",0,1);
+  s.board->drawRect(20,168,900,340,0);
+  s.board->drawText(30,190,preview,0,1);
+  s.board->drawText(20,515,"Swipe up for next, tap top/bottom edge for prev/next",0,1);
+}
+
+void MarkdownReaderApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
+  if (ev.type == TouchType::SwipeUp && _startLine < _lastMaxStart) _startLine += 4;
+  if (ev.type == TouchType::Tap && ev.y < (BoardConfig::STATUS_BAR_H + 80) && _startLine > 0) _startLine -= 4;
+  if (ev.type == TouchType::Tap && ev.y > 500 && _startLine < _lastMaxStart) _startLine += 4;
+  if (_startLine < 0) _startLine = 0;
+  if (_startLine > _lastMaxStart) _startLine = _lastMaxStart;
+}
 
 void FileExplorerApp::render(SystemServices& s) {
   titleBar(s,"Files: "+_path); int y=105;

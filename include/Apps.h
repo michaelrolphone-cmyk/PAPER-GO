@@ -72,7 +72,12 @@ class MarkdownReaderApp : public SimpleListApp {
 public:
   const char* id() const override { return "markdown"; }
   const char* title() const override { return "Markdown"; }
+  void onStart(SystemServices& s) override;
   void render(SystemServices& s) override;
+  void handleTouch(SystemServices& s, const TouchEvent& ev) override;
+private:
+  int _startLine = 0;
+  int _lastMaxStart = 0;
 };
 class FileExplorerApp : public SimpleListApp {
 public:
