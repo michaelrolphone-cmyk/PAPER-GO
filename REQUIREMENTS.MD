@@ -1254,6 +1254,9 @@ This should be treated as a miniature e-paper field computer OS, with the spring
 
 - [x] Markdown Reader loads markdown content from SD (`/documents/markdown/readme.md`).
 - [x] Markdown Reader renders a bounded preview view suitable for e-paper updates.
+- [x] Markdown Reader preview applies e-paper-friendly formatting for headings, lists, blockquotes, and code blocks.
+- [x] Markdown Reader supports swipe-based vertical preview scrolling with bounded window rendering.
+- [x] Markdown preview supports ordered lists, link-text rendering, table-line markers, and image placeholders.
 
 - [x] Web API exposes `/api/status` for core device status snapshot.
 - [x] OpenAPI specification added for `/api/health`, `/api/status`, and `/api/apps/order`.

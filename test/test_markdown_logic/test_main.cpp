@@ -18,10 +18,49 @@ void test_preview_limits_lines() {
   TEST_ASSERT_TRUE(out.indexOf("c") < 0);
 }
 
+void test_render_preview_formats_structural_lines() {
+  String md = "# Title\n\n- Item one\n> Quote\n```\ncode line\n```\n";
+  String out = markdownRenderPreview(md, 500, 12, 30);
+  TEST_ASSERT_TRUE(out.indexOf("[H] Title") >= 0);
+  TEST_ASSERT_TRUE(out.indexOf("• Item one") >= 0);
+  TEST_ASSERT_TRUE(out.indexOf("> Quote") >= 0);
+  TEST_ASSERT_TRUE(out.indexOf("| code line") >= 0);
+}
+
+void test_render_preview_wraps_long_lines() {
+  String md = "This is a very long markdown line that should wrap across multiple preview rows.";
+  String out = markdownRenderPreview(md, 500, 10, 20);
+  int firstNl = out.indexOf('\n');
+  TEST_ASSERT_TRUE(firstNl > 0);
+  TEST_ASSERT_TRUE(out.substring(0, firstNl).length() <= 20);
+}
+
+void test_render_preview_supports_ordered_links_and_images() {
+  String md = "1. First [link](https://example.com)\n2. ![map](x.png)\n|h|v|\n";
+  String out = markdownRenderPreview(md, 500, 12, 40);
+  TEST_ASSERT_TRUE(out.indexOf("1. First link") >= 0);
+  TEST_ASSERT_TRUE(out.indexOf("2. [Image: map]") >= 0);
+  TEST_ASSERT_TRUE(out.indexOf("[T] |h|v|") >= 0);
+}
+
+void test_markdown_window_scroll_helpers() {
+  String rendered = "l1\nl2\nl3\nl4\nl5\n";
+  TEST_ASSERT_EQUAL(2, markdownClampStartLine(rendered, 99, 3));
+  TEST_ASSERT_EQUAL(0, markdownClampStartLine(rendered, -4, 3));
+  TEST_ASSERT_EQUAL(5, (int)markdownLineCount(rendered));
+  TEST_ASSERT_EQUAL(1, (int)markdownLineCount("single-line"));
+  String win = markdownWindow(rendered, 1, 2);
+  TEST_ASSERT_EQUAL_STRING("l2\nl3\n", win.c_str());
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_markdown_title_from_heading);
   RUN_TEST(test_markdown_title_plain_first_line);
   RUN_TEST(test_preview_limits_lines);
+  RUN_TEST(test_render_preview_formats_structural_lines);
+  RUN_TEST(test_render_preview_wraps_long_lines);
+  RUN_TEST(test_render_preview_supports_ordered_links_and_images);
+  RUN_TEST(test_markdown_window_scroll_helpers);
   return UNITY_END();
 }
