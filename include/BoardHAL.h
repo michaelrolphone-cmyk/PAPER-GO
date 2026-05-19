@@ -5,6 +5,7 @@
 #include <Wire.h>
 #include "Types.h"
 #include "TouchLogic.h"
+#include "LowlightLogic.h"
 
 class BoardHAL {
 public:
@@ -22,10 +23,15 @@ public:
   void setTouchSample(bool touching, int16_t x, int16_t y);
   BatteryStatus battery();
   void sleepSeconds(uint32_t seconds);
+  void setLowlightMode(bool enabled);
+  void toggleBacklight();
+  bool backlightOn() const { return shouldBacklightBeOn(_lowlight); }
 private:
   bool _sdMounted=false;
   TouchClassifier _touchClassifier;
   bool _touching=false;
   int16_t _touchX=0;
   int16_t _touchY=0;
+  LowlightState _lowlight;
+  void applyBacklightState();
 };

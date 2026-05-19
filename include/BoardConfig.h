@@ -25,4 +25,5 @@ static constexpr uint8_t GT911_ADDR = 0x5D;
 static constexpr uint8_t RTC_ADDR = 0x51;
 static constexpr uint8_t BQ25896_ADDR = 0x6B;
 static constexpr uint8_t BQ27220_ADDR = 0x55;
+static constexpr int PIN_BACKLIGHT = 48;
 }

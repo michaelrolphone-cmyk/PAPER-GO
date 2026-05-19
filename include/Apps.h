@@ -27,7 +27,9 @@ public:
   const char* id() const override { return "lock"; }
   const char* title() const override { return "Lock"; }
   void onStart(SystemServices& s) override;
+  void onStop(SystemServices& s) override;
   void render(SystemServices& s) override;
+  void handleTouch(SystemServices& s, const TouchEvent& ev) override;
 private:
   String _status;
   String _preview;
