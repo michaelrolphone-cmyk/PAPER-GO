@@ -6,6 +6,7 @@
 #include "NavLogic.h"
 #include "StatusBarRenderLogic.h"
 #include "DisplayRefreshLogic.h"
+#include "PowerManagementLogic.h"
 
 class AppManager {
 public:
@@ -23,5 +24,7 @@ private:
   bool _havePreviousStatusBar=false;
   StatusBarSnapshot _previousStatusBar;
   DisplayRefreshState _refreshState;
+  PowerPolicy _powerPolicy;
+  PowerState _powerState;
   App* find(const String& id);
 };
