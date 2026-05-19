@@ -13,6 +13,7 @@
 #include "PowerApiLogic.h"
 #include "PowerManagementLogic.h"
 #include "MinesweeperLogic.h"
+#include "MapTileLogic.h"
 #include "TicTacToeLogic.h"
 #include "WifiConfigLogic.h"
 

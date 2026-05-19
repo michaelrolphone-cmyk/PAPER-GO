@@ -3,6 +3,7 @@
 #include "Services.h"
 #include "StatusLogic.h"
 #include "StatusBarRenderLogic.h"
+#include "AppRenderDecisionLogic.h"
 
 static StatusBarSnapshot captureStatusSnapshot(SystemServices& s, App* active) {
   BatteryStatus b=s.board->battery();
@@ -41,7 +42,9 @@ void AppManager::update(SystemServices& s) {
   if(!_active) return;
   uint32_t now=millis();
   _active->update(s, now);
-  if (s.board->pollPowerButtonPressed()) {
+  bool powerPressed = s.board->pollPowerButtonPressed();
+  bool homePressed = false;
+  if (powerPressed) {
     _powerState.lastInteractionMs = now;
     String activeId = String(_active->id());
     if (shouldPowerButtonReturnToOnline(activeId)) {
@@ -52,7 +55,8 @@ void AppManager::update(SystemServices& s) {
       return;
     }
   }
-  if (s.board->pollHomeButtonPressed()) {
+  homePressed = s.board->pollHomeButtonPressed();
+  if (homePressed) {
     _powerState.lastInteractionMs = now;
     if (_active->handleHomeButton(s)) {
       render(s, true);
@@ -65,6 +69,7 @@ void AppManager::update(SystemServices& s) {
   if(ev.type == TouchType::SwipeDown) s.requestHome = true;
   else if(ev.type == TouchType::SwipeRight && String(_active->id()) != "springboard") s.requestBack = true;
   else if(ev.type != TouchType::None) _active->handleTouch(s, ev);
+  bool interactionRenderRequested = shouldRenderAfterInputEvent(ev.type, homePressed, powerPressed);
   if(s.requestHome) { s.requestHome=false; _nav.clear(); open(s,"springboard"); return; }
   if(s.requestBack) { s.requestBack=false; String backId = _nav.popBackTarget(); if(backId.length()) open(s, backId); else open(s,"springboard"); return; }
   if(s.requestOpenApp.length()) { String id=s.requestOpenApp; s.requestOpenApp=""; open(s,id); return; }
@@ -83,6 +88,11 @@ void AppManager::update(SystemServices& s) {
   BatteryStatus batt = s.board->battery();
   if (shouldDisableWifiForLowPower(_powerState.lockScreenActive, batt.charging) && s.net->status().wifi) {
     s.net->disconnect();
+  }
+
+  if (interactionRenderRequested) {
+    render(s, false);
+    return;
   }
 
   if(now - _lastRender > 5000) {
