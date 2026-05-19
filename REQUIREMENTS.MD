@@ -1,3 +1,981 @@
+# PAPER-GO Arduino IDE Implementation Requirements
+
+This file is the implementation contract for `PAPER-GO` when building with the **Arduino IDE**, not PlatformIO.
+
+The firmware target is the **LILYGO T5S3 4.7-inch E-Paper Pro / H752-01** class board. The project is a handheld e-paper field OS with a launcher, touch apps, GPS, SD storage, radio utilities, weather/cache functions, web server tools, and offline utility/game apps.
+
+This document intentionally avoids PlatformIO-only requirements. Do not require `pio run`, `pio test`, `platformio.ini`, PlatformIO environments, or PlatformIO-only library dependency declarations as the definition of done.
+
+---
+
+## 0. Non-negotiable development rules
+
+These rules apply to every task.
+
+1. Build and test through the Arduino IDE workflow first.
+2. Do not satisfy a requirement by adding a stub, fake class, placeholder screen, TODO-only implementation, mock-only behavior, or "not implemented" notice.
+3. Do not replace existing working behavior with serial-print-only scaffolding.
+4. Do not remove existing features to make a compile error disappear.
+5. Do not add PlatformIO as a required build system.
+6. Do not require the user to manually edit library source files.
+7. Use installed Arduino libraries and real board APIs where available.
+8. Hardware-facing requirements must call the real hardware library or real chip interface.
+9. Every user-facing app task must connect rendering, touch handling, state, and service behavior.
+10. A task is not complete until the acceptance checks for that task pass in Arduino IDE.
+11. If a feature cannot be implemented in the current turn, leave the existing behavior intact and document the exact blocking compile/runtime error in the commit notes.
+12. Do not mark checkboxes as complete unless the firmware compiles and the feature is reachable on-device.
+
+---
+
+## 1. Arduino IDE build policy
+
+### 1.1 Required build workflow
+
+The project must compile in Arduino IDE using an Arduino sketch entry point.
+
+Required workflow:
+
+1. Open the project as an Arduino sketch.
+2. Select an ESP32-S3 board profile compatible with the LILYGO T5S3 4.7-inch e-paper Pro.
+3. Enable PSRAM.
+4. Use 16 MB flash.
+5. Enable USB CDC on boot when needed for serial logs.
+6. Build and upload from Arduino IDE.
+7. Verify visible screen output on the e-paper display.
+
+The project may keep a `platformio.ini` file for users who want it, but it must not be the required path.
+
+### 1.2 Arduino sketch layout requirement
+
+Codex must ensure the repository contains an Arduino IDE-compatible sketch layout.
+
+Acceptable Arduino layout:
+
+```text
+PAPER-GO/
+  PAPER-GO.ino
+  src/
+    BoardHAL.cpp
+    BoardHAL.h
+    BoardConfig.h
+    Services.cpp
+    Services.h
+    AppManager.cpp
+    AppManager.h
+    Apps.cpp
+    Apps.h
+    ...
+```
+
+Rules:
+
+1. The root `.ino` file must be named to match the sketch folder or be placed in a properly named Arduino sketch folder.
+2. Project headers used by `src/*.cpp` must be available through Arduino's normal include search path.
+3. Do not rely on PlatformIO's root `include/` folder behavior.
+4. If headers are currently under `include/`, either move them into `src/` or add Arduino-compatible forwarding headers in `src/`.
+5. Keep all implementation code in real `.cpp/.h` files where practical.
+6. Do not flatten the whole project into one giant `.ino` unless there is no other working Arduino-compatible option.
+7. Do not create a second duplicate firmware tree that drifts from the real source.
+
+Acceptance checks:
+
+- Arduino IDE can open the sketch without needing PlatformIO.
+- A clean Arduino compile finds all project headers.
+- No source file fails because `BoardConfig.h`, `BoardHAL.h`, `Services.h`, `Apps.h`, or any other project header is hidden in a PlatformIO-only include directory.
+
+---
+
+## 2. Library policy for Arduino IDE
+
+### 2.1 Display library rule
+
+The installed display library is **LilyGo-EPD47**.
+
+That library exposes:
+
+```cpp
+#include "epd_driver.h"
+```
+
+It does **not** expose:
+
+```cpp
+#include <epdiy.h>
+```
+
+Therefore, for the normal Arduino IDE build, Codex must not include `epdiy.h` unless the repository also vendors the actual `epdiy` source and the Arduino build is explicitly configured to compile it.
+
+Required normal path:
+
+```cpp
+#include "epd_driver.h"
+```
+
+Use the LilyGo-EPD47 style display API:
+
+```cpp
+epd_init();
+epd_poweron();
+epd_clear();
+epd_draw_grayscale_image(epd_full_screen(), framebuffer);
+epd_poweroff();
+```
+
+Do not call epdiy-only APIs in the Arduino IDE default build:
+
+```cpp
+epd_init(&epd_board_v7, &ED047TC1, EPD_LUT_64K);
+epd_hl_init(...);
+epd_hl_get_framebuffer(...);
+epd_hl_update_screen(...);
+epd_set_rotation(...);
+epd_rotated_display_width();
+epd_rotated_display_height();
+```
+
+Those are only acceptable if `epdiy` is intentionally vendored and proven to compile under Arduino IDE.
+
+### 2.2 Correct display import task
+
+Files to inspect/change:
+
+- `src/BoardHAL.cpp`
+- `src/BoardHAL.h`
+- `src/BoardConfig.h`
+- root `.ino`
+- any display helper files
+
+Tasks:
+
+1. Replace `#include <epdiy.h>` with the correct LilyGo-EPD47 Arduino include:
+   ```cpp
+   #include "epd_driver.h"
+   ```
+2. Remove hard dependencies on `EpdiyHighlevelState`, `EPD_BUILTIN_WAVEFORM`, `epd_board_v7`, `ED047TC1`, and `epd_hl_*` functions from the Arduino default path.
+3. Allocate a 4-bit grayscale framebuffer using PSRAM:
+   ```cpp
+   framebuffer = (uint8_t*)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
+   ```
+4. Preserve the existing `BoardHAL` drawing API:
+   - `clear`
+   - `fillRect`
+   - `drawRect`
+   - `drawLine`
+   - `drawText`
+   - `beginFrame`
+   - `endFrame`
+5. Implement those functions by drawing into the framebuffer.
+6. In `endFrame`, update the physical display using:
+   ```cpp
+   epd_poweron();
+   epd_draw_grayscale_image(epd_full_screen(), framebuffer);
+   epd_poweroff();
+   ```
+7. Do not just print draw calls to Serial.
+8. Do not return success if framebuffer allocation fails.
+9. Show a boot splash that proves the framebuffer was physically sent to the e-paper panel.
+
+Acceptance checks:
+
+- Arduino IDE compile does not report `epdiy.h: No such file or directory`.
+- Arduino IDE compile does not report unknown `epd_hl_*` symbols.
+- Uploading the firmware shows a visible boot splash.
+- Calls to `BoardHAL::drawText`, `drawRect`, `fillRect`, and `drawLine` visibly change the screen.
+- `BoardHAL::endFrame(true)` performs a real display refresh.
+
+### 2.3 Touch library rule
+
+Use the installed SensorLib GT911 driver:
+
+```cpp
+#include <TouchDrvGT911.hpp>
+```
+
+Do not leave touch as injected sample-only state in the normal board build.
+
+Required behavior:
+
+1. Initialize I2C on the board SDA/SCL pins.
+2. Probe GT911 at `0x14` and `0x5D`.
+3. Initialize touch using `touch.begin(...)`.
+4. Set max coordinates to the e-paper dimensions.
+5. Apply the same swap/mirror configuration used by the working LilyGo example unless testing proves different orientation is required.
+6. Convert physical touches into the existing `TouchEvent` classifier.
+7. Support tap, long press, swipe, and drag.
+
+Acceptance checks:
+
+- Touch startup log reports the detected GT911 address.
+- Tapping launcher icons opens apps.
+- Swipe down returns home.
+- Swipe right performs back where applicable.
+- Touch coordinates match the visible screen orientation.
+
+### 2.4 Battery and power library rule
+
+Use the real board battery/charger interfaces where available.
+
+Relevant Arduino libraries may include:
+
+```cpp
+#include <XPowersLib.h>
+#include "bq27220.h"
+```
+
+Required behavior:
+
+1. Stop returning fake battery values.
+2. Read battery percent or state-of-charge from BQ27220 when available.
+3. Read charging/power state from BQ25896/XPowers when available.
+4. Fall back to ADC voltage only when the gauge is not detected.
+5. Status bar must show real percent or a clear unavailable state.
+6. Charging icon must reflect the charger state, not a hard-coded false value.
+
+Acceptance checks:
+
+- `BoardHAL::battery()` never returns the hard-coded placeholder `{percent=-1, charging=false}` when the hardware responds.
+- Serial diagnostics identify whether BQ27220, BQ25896, and ADC fallback are being used.
+- Status bar updates after plugging/unplugging USB power.
+
+### 2.5 Required Arduino libraries
+
+The Arduino build must explicitly document and use these libraries only when the code actually includes them:
+
+- LilyGo-EPD47
+- SensorLib
+- XPowersLib
+- Button2 if physical button helper logic uses it
+- ArduinoJson
+- TinyGPSPlus
+- RadioLib
+- NimBLE-Arduino
+- WebSockets if still used by real code
+- ESP32 board package
+
+Do not add a library to the requirements unless a real source file uses it.
+
+Acceptance checks:
+
+- README contains an Arduino IDE "Install these libraries" section.
+- The list matches actual includes.
+- The firmware compiles after installing those libraries through Arduino Library Manager or documented ZIP/GitHub install steps.
+
+---
+
+## 3. Current repository baseline to preserve
+
+The current project already contains foundations that must not be deleted:
+
+1. `BoardHAL` owns display, touch, button, SD, battery, sleep, and frontlight/backlight boundaries.
+2. `SystemServices` ties hardware/services to apps.
+3. `AppManager` owns the current app, navigation, status bar, power actions, and redraw decisions.
+4. App classes exist for:
+   - Springboard
+   - Lock Screen
+   - GPS Map
+   - Radio Scanner
+   - Meshtastic
+   - URL Fetcher
+   - Markdown Reader
+   - File Explorer
+   - Weather
+   - Web Server
+   - Games
+   - Settings
+5. `Services.cpp` owns GPS, Wi-Fi, cache layout, radio scanning, and web server behavior.
+6. Logic/helper files should stay separated from hardware-specific code where possible.
+7. Existing pure logic tests may remain, but they must not define the build workflow.
+
+Incomplete areas that must be implemented rather than hidden:
+
+1. `BoardHAL::pollTouch()` must read the real GT911 controller.
+2. `BoardHAL::battery()` must read real battery/charge state.
+3. `GpsMapApp` must render actual cached/offline map content or a real local map tile format, not only a placeholder box.
+4. `MeshtasticApp` must become an actual messaging/node UI or be clearly scoped as LoRa packet messaging if full Meshtastic compatibility is not implemented.
+5. `GamesApp` must open playable game screens.
+6. `SettingsApp` must support actual editing of Wi-Fi, power, display, GPS, LoRa, cache, and web server settings.
+7. All UI coordinates must fit the real 960x540 panel.
+8. The code must compile under Arduino IDE without PlatformIO include path behavior.
+
+---
+
+## 4. Definition of done for Arduino IDE
+
+A feature is done only when all of these are true:
+
+1. Arduino IDE build succeeds from a clean checkout after documented library installation.
+2. No compile error references missing `epdiy.h`.
+3. No compile error is fixed by deleting a feature.
+4. The firmware uploads to the board.
+5. The e-paper screen visibly changes.
+6. Touch input works on the real GT911 panel.
+7. SD card mounts and creates the required folder structure.
+8. GPS, Wi-Fi, LoRa, battery, and RTC failures are handled visibly without crashing.
+9. UI drawing stays inside the 960x540 display bounds.
+10. Features are reachable through touch UI or documented web endpoints.
+11. New pure logic has tests where practical, but tests are not a substitute for real on-device behavior.
+12. Documentation describes Arduino IDE setup, not PlatformIO as the required path.
+
+---
+
+# Milestone A — Convert the project to a clean Arduino IDE build
+
+## A1. Add/repair the Arduino sketch entry point
+
+Files to inspect/change:
+
+- root `.ino`
+- `src/main.cpp`
+- `src/*.h`
+- `src/*.cpp`
+- old `include/*.h`
+
+Tasks:
+
+1. Ensure there is a single Arduino sketch entry point with `setup()` and `loop()`.
+2. If `src/main.cpp` already contains `setup()` and `loop()`, either:
+   - rename/wrap it so Arduino compiles it correctly, or
+   - create a minimal `.ino` that includes the necessary project headers and delegates to firmware setup/loop functions.
+3. Avoid duplicate definitions of `setup()` and `loop()`.
+4. Move or forward project headers so Arduino can find them without PlatformIO's `include/` behavior.
+5. Keep the existing services and app architecture intact.
+
+Acceptance checks:
+
+- Arduino IDE opens the project as a sketch.
+- Compile succeeds without manually copying headers.
+- There is only one `setup()` and one `loop()` in the final Arduino build.
+
+## A2. Remove PlatformIO requirements from docs and acceptance checks
+
+Files to inspect/change:
+
+- `REQUIREMENTS.MD`
+- `README.md`
+- any build docs
+- comments in source if misleading
+
+Tasks:
+
+1. Replace `pio run` acceptance checks with Arduino IDE compile/upload checks.
+2. Do not delete `platformio.ini` unless explicitly requested.
+3. State that PlatformIO is optional and unsupported by the required workflow.
+4. Document board settings for Arduino IDE:
+   - ESP32-S3 compatible board
+   - 16 MB flash
+   - OPI PSRAM enabled
+   - USB CDC on boot enabled when serial logging is needed
+   - correct upload mode for the user's machine
+5. Document Arduino library installation.
+
+Acceptance checks:
+
+- README has a clear Arduino IDE setup path.
+- Requirements do not require PlatformIO.
+- PlatformIO is not mentioned as the required build system.
+
+## A3. Fix project include paths for Arduino
+
+Known issue:
+
+PlatformIO automatically handles root `include/`. Arduino IDE generally does not behave like PlatformIO. Any project header needed by `src/*.cpp` must be available in a path Arduino compiles and searches.
+
+Tasks:
+
+1. Identify every project header included as:
+   ```cpp
+   #include "SomeHeader.h"
+   ```
+2. Ensure that header is in the same folder as the source file or in Arduino's compiled `src/` tree.
+3. Prefer moving project headers from `/include` to `/src`.
+4. If moving headers is too invasive, create forwarding headers in `/src`:
+   ```cpp
+   #pragma once
+   #include "../include/BoardConfig.h"
+   ```
+   This is acceptable only as a transitional step.
+5. Do not change includes to absolute Windows paths.
+6. Do not require Arduino IDE custom compiler flags.
+
+Acceptance checks:
+
+- Arduino compile does not fail with missing project headers.
+- The repo can be cloned to a different folder and still compile.
+
+---
+
+# Milestone B — Real e-paper display using LilyGo-EPD47
+
+## B1. Replace epdiy display dependency in the default Arduino build
+
+Files:
+
+- `src/BoardHAL.cpp`
+- `src/BoardHAL.h`
+- `src/BoardConfig.h`
+
+Tasks:
+
+1. Remove default-path dependency on:
+   ```cpp
+   #include <epdiy.h>
+   ```
+2. Include the installed LilyGo driver:
+   ```cpp
+   #include "epd_driver.h"
+   ```
+3. Allocate a global/private framebuffer:
+   ```cpp
+   static uint8_t* g_framebuffer = nullptr;
+   ```
+4. Allocate it after PSRAM is available:
+   ```cpp
+   g_framebuffer = (uint8_t*)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
+   ```
+5. Fail `BoardHAL::begin()` if allocation fails.
+6. Initialize the display with `epd_init()`.
+7. Clear the screen with `epd_clear()`.
+8. Render the boot splash into the framebuffer.
+9. Send the framebuffer with `epd_draw_grayscale_image(epd_full_screen(), g_framebuffer)`.
+10. Power off the panel after refresh.
+
+Acceptance checks:
+
+- `epdiy.h not found` is gone.
+- `EPD_WIDTH` and `EPD_HEIGHT` compile from the installed display library.
+- The screen shows "PAPER GO" or equivalent boot splash after upload.
+
+## B2. Implement 4-bit framebuffer drawing
+
+Tasks:
+
+1. Implement a safe 4-bit pixel writer:
+   - one byte stores two pixels
+   - gray levels clamp to 0..15
+   - no off-screen write
+2. Implement:
+   - `clear(gray)`
+   - `fillRect(x,y,w,h,gray)`
+   - `drawRect(x,y,w,h,gray)`
+   - `drawLine(x1,y1,x2,y2,gray)`
+   - `drawText(x,y,text,gray,size)`
+3. Preserve the existing 5x7 font logic or replace it with a real Arduino-compatible font renderer.
+4. Do not use Serial output as a substitute for drawing.
+
+Acceptance checks:
+
+- Boot screen has text and at least one rectangle.
+- Springboard icons/cards render visibly.
+- Drawing functions do not crash on out-of-bounds coordinates.
+
+## B3. Fix full refresh and partial refresh policy
+
+Tasks:
+
+1. Implement `beginFrame()` as a real frame preparation hook.
+2. Implement `endFrame(fullRefresh)` as a real display update.
+3. For the first working Arduino version, full-screen grayscale refresh is acceptable.
+4. Partial refresh may be added later only after full-screen refresh works.
+5. Do not call unsupported epdiy partial refresh functions in the LilyGo-EPD47 path.
+
+Acceptance checks:
+
+- Switching apps updates the screen.
+- Status bar redraws on a timed update.
+- Lock screen renders.
+- No refresh code depends on `epd_hl_update_screen`.
+
+---
+
+# Milestone C — Real GT911 touch
+
+## C1. Initialize GT911
+
+Files:
+
+- `src/BoardHAL.cpp`
+- `src/BoardHAL.h`
+- `src/BoardConfig.h`
+
+Tasks:
+
+1. Include:
+   ```cpp
+   #include <TouchDrvGT911.hpp>
+   ```
+2. Add a `TouchDrvGT911` instance.
+3. Initialize `Wire` with board SDA/SCL.
+4. Probe both likely addresses:
+   - `0x14`
+   - `0x5D`
+5. Call `touch.begin(...)` using the detected address.
+6. Set max coordinates to display width/height.
+7. Configure swap/mirror to match the real panel orientation.
+8. Log whether touch is online.
+
+Acceptance checks:
+
+- Serial log reports GT911 online or failed with address.
+- If touch fails, firmware still boots and shows a visible error indicator.
+
+## C2. Convert GT911 points into existing touch events
+
+Tasks:
+
+1. Read touch points in `BoardHAL::pollTouch()`.
+2. Feed the first point into the existing tap/long-press/swipe/drag classifier.
+3. Feed second point into two-point handling only if that code already works.
+4. Preserve test injection methods, but only under test/simulator paths.
+5. Do not let injected sample state override real touch in normal firmware.
+
+Acceptance checks:
+
+- Tap opens launcher icons.
+- Long press opens app options.
+- Swipe left/right changes launcher pages when needed.
+- Swipe down returns home.
+- Drag scrolls reader/file views where implemented.
+
+---
+
+# Milestone D — Screen layout correctness
+
+Known issue:
+
+Some current screen coordinates exceed the real display height. The display is 960x540, so coordinates like `y=680` and `y=900` are invalid.
+
+Tasks:
+
+1. Audit all render functions for hard-coded coordinates.
+2. Replace invalid coordinates with layout derived from:
+   ```cpp
+   BoardConfig::SCREEN_W
+   BoardConfig::SCREEN_H
+   BoardConfig::STATUS_BAR_H
+   ```
+3. Make Springboard fit inside 960x540.
+4. Make Lock Screen fit inside 960x540.
+5. Make GPS Map, Radio, Markdown, Files, Weather, Web, Games, and Settings fit inside 960x540.
+6. Add clipping counters in debug builds.
+7. Do not hide content off-screen and call it implemented.
+
+Acceptance checks:
+
+- Every app's title and main content are visible.
+- No footer is drawn below y=539.
+- Springboard page indicator is visible.
+- Games cards are visible and tappable.
+
+---
+
+# Milestone E — SD card and persistent storage
+
+## E1. SD card mount
+
+Tasks:
+
+1. Use the board's SPI pins and SD CS pin.
+2. Initialize SPI before SD.
+3. Mount SD with Arduino `SD.begin(...)`.
+4. Show SD status in the status bar.
+5. If SD fails, apps that require SD must show a clear error but firmware must continue.
+
+Acceptance checks:
+
+- Empty SD card gets the required folders.
+- Missing SD does not crash.
+- SD status changes are visible after reboot.
+
+## E2. Create storage layout
+
+Required layout:
+
+```text
+/apps/
+/cache/
+/cache/maps/
+/cache/weather/
+/cache/http/
+/documents/
+/documents/markdown/
+/documents/text/
+/webroot/
+/games/
+/gps/
+/gps/tracks/
+/gps/fixes/
+/meshtastic/
+/meshtastic/messages/
+/meshtastic/nodes/
+/meshtastic/config/
+/radio/
+/radio/scans/
+/config/
+/logs/
+```
+
+Tasks:
+
+1. Create folders on boot if SD is mounted.
+2. Log folder creation failures.
+3. Do not assume folders already exist.
+4. Do not write config files into flash when the requirement says SD, except for explicitly mirrored NVS fallback values.
+
+Acceptance checks:
+
+- First boot on a blank SD creates the folder tree.
+- File Explorer can browse the created folders.
+
+---
+
+# Milestone F — Battery, RTC, and power
+
+## F1. Battery
+
+Tasks:
+
+1. Probe BQ27220.
+2. Probe BQ25896/XPowers.
+3. Return real percent, voltage, current, and charging state where available.
+4. Use ADC voltage fallback only if gauge chips fail.
+5. Show battery percent in status bar.
+6. Show charging state correctly.
+
+Acceptance checks:
+
+- `BoardHAL::battery()` reports real data when hardware is present.
+- Status bar changes when USB charging state changes.
+- No hard-coded placeholder values remain in the normal build.
+
+## F2. RTC
+
+Tasks:
+
+1. Initialize PCF8563/compatible RTC.
+2. Display RTC time on lock screen/status bar.
+3. Sync RTC from GPS time when available.
+4. Sync RTC from network time when configured.
+5. Preserve last known time if no source is available.
+
+Acceptance checks:
+
+- Time appears without Wi-Fi after RTC has been set.
+- GPS valid time can update RTC.
+- Lock screen time is not a fake constant.
+
+## F3. Power states
+
+Tasks:
+
+1. Implement active, idle, lock screen, and deep sleep behaviors.
+2. Save current app/state before deep sleep where practical.
+3. Power down Wi-Fi/BLE/GPS when policy requires it.
+4. Keep e-paper content visible without unnecessary refresh.
+5. Use a physical button or configured wake source.
+
+Acceptance checks:
+
+- Idle timeout enters lock screen.
+- Deep sleep can be enabled/disabled in settings.
+- Device wakes without losing critical settings.
+
+---
+
+# Milestone G — Settings app
+
+Tasks:
+
+1. Implement editable settings rows.
+2. Add an on-screen text input method usable with touch.
+3. Support Wi-Fi SSID/password entry.
+4. Support GPS enable/disable.
+5. Support LoRa frequency/region parameters.
+6. Support display refresh mode.
+7. Support power timeout settings.
+8. Support cache controls.
+9. Support web server enable/auth settings.
+10. Save settings to SD JSON files.
+11. Mask saved passwords on screen.
+12. Do not display Wi-Fi passwords after save.
+
+Acceptance checks:
+
+- User can enter Wi-Fi credentials entirely on device.
+- Reboot preserves settings.
+- Invalid JSON falls back safely and shows an error.
+- Password is masked in UI.
+
+---
+
+# Milestone H — File Explorer and document apps
+
+## H1. File Explorer
+
+Tasks:
+
+1. Browse folders.
+2. Navigate up/down.
+3. Show file name, directory/file marker, and size.
+4. Open text files.
+5. Open Markdown files in Markdown Reader.
+6. Create folder.
+7. Rename file/folder.
+8. Delete file/folder with confirmation.
+9. Protect `/config`, `/cache`, and `/apps` unless developer mode is enabled.
+10. Implement scrolling for long directories.
+
+Acceptance checks:
+
+- Tapping a folder enters it.
+- Tapping `..` goes up.
+- Long directories scroll.
+- Delete confirmation prevents accidental deletion.
+
+## H2. Markdown Reader
+
+Tasks:
+
+1. Open selected markdown file from File Explorer.
+2. Parse headings, paragraphs, bold/italic markers, inline code, code blocks, lists, blockquotes, rules, and links as visible text.
+3. Reflow text to 960px width.
+4. Support page up/down and drag scroll.
+5. Save last reading position per file.
+6. Support font size setting.
+
+Acceptance checks:
+
+- Opening `/documents/markdown/readme.md` displays formatted content.
+- Reboot resumes last read position.
+- Swipe/tap scroll works on real touch.
+
+---
+
+# Milestone I — Network, URL Fetcher, Weather, and Web Server
+
+## I1. Wi-Fi manager
+
+Tasks:
+
+1. Scan networks.
+2. Display SSID, RSSI, channel, and security.
+3. Select network by touch.
+4. Enter password.
+5. Save/forget credentials.
+6. Connect/disconnect.
+7. Show IP address.
+
+Acceptance checks:
+
+- User can join Wi-Fi without editing files by hand.
+- Offline state is visible.
+- Apps do not block forever while Wi-Fi connects.
+
+## I2. URL Fetcher
+
+Tasks:
+
+1. Enter/edit URL on device.
+2. Fetch over Wi-Fi.
+3. Show HTTP status.
+4. Show response headers optionally.
+5. Render plain text.
+6. Strip basic HTML to text.
+7. Pretty-print JSON.
+8. Save response under `/cache/http`.
+9. Use cache while offline.
+
+Acceptance checks:
+
+- Valid text URL displays content.
+- Offline cached URL displays saved content and stale/offline label.
+- Timeout shows a clear error.
+
+## I3. Weather
+
+Tasks:
+
+1. Use GPS fix, last known fix, or manual location.
+2. Fetch weather from configured provider.
+3. Cache response under `/cache/weather`.
+4. Show current condition, temperature, high/low, wind, precipitation chance, and forecast.
+5. Mark stale cached data clearly.
+6. Do not pretend stale data is live.
+
+Acceptance checks:
+
+- Weather works with live Wi-Fi.
+- Weather works from cache offline.
+- Missing location shows actionable message.
+
+## I4. Web Server
+
+Tasks:
+
+1. Serve `/webroot`.
+2. Provide directory index.
+3. Provide device status API.
+4. Provide optional file upload if enabled.
+5. Provide optional authentication.
+6. Show server running state and IP on device.
+7. Start/stop from UI.
+
+Acceptance checks:
+
+- Browser can open device IP and list `/webroot`.
+- Device status endpoint returns JSON.
+- Server can be disabled from UI.
+
+---
+
+# Milestone J — GPS and maps
+
+## J1. GPS service
+
+Tasks:
+
+1. Initialize GPS UART.
+2. Parse NMEA with TinyGPSPlus.
+3. Maintain current fix, last valid fix, fix quality, satellites, HDOP, altitude, speed, course, and timestamp.
+4. Compute heading from movement only.
+5. Reject stationary false heading.
+6. Maintain best-fit location from recent fixes.
+7. Log tracks when enabled.
+
+Acceptance checks:
+
+- GPS status changes from searching to fix.
+- Lat/lon display updates.
+- Heading shows unavailable when stationary.
+- Track CSV writes to `/gps/tracks`.
+
+## J2. Map cache and renderer
+
+Tasks:
+
+1. Convert lat/lon to slippy tile z/x/y.
+2. Define a realistic tile format for ESP32:
+   - preprocessed grayscale raw tile, or
+   - decoded image only if memory/performance is proven.
+3. Cache tiles under `/cache/maps/{provider}/{z}/{x}/{y}.tile`.
+4. Render cached tiles into the map view.
+5. Draw current GPS position over map.
+6. Draw missing tile placeholders.
+7. Show cache coverage state.
+8. Support pan/zoom by touch.
+9. Respect provider terms and do not bulk-download from restricted providers.
+
+Acceptance checks:
+
+- Cached tile appears on screen.
+- Missing tile placeholder appears when tile absent.
+- GPS marker appears over map.
+- Offline map works with cached tiles.
+
+---
+
+# Milestone K — Radio scanner and LoRa utilities
+
+Tasks:
+
+1. Initialize SX1262 with RadioLib.
+2. Scan Wi-Fi networks.
+3. Scan BLE advertisements.
+4. Receive LoRa packets for configured frequency/spreading/bandwidth/coding parameters.
+5. Distinguish:
+   - Wi-Fi APs
+   - BLE ads
+   - LoRa packets
+   - unknown/unsupported RF
+6. Log scans under `/radio/scans`.
+7. Show RSSI, SNR, channel/frequency, packet count, and last seen time.
+8. Do not claim the SX1262 is a universal radio scanner.
+
+Acceptance checks:
+
+- Wi-Fi scan shows nearby networks.
+- BLE scan shows advertisements.
+- LoRa packet receive works with a known transmitter.
+- Scan log is written to SD.
+
+---
+
+# Milestone L — Meshtastic / mesh messaging
+
+Important boundary:
+
+Full Meshtastic compatibility is a major integration task. Do not fake it with a screen that only counts files.
+
+Tasks:
+
+1. Choose one real implementation path:
+   - integrate a Meshtastic-compatible protocol layer, or
+   - implement a clearly named "LoRa Mesh Lite" app that does not claim full Meshtastic compatibility.
+2. Implement node list.
+3. Implement message list.
+4. Implement send message.
+5. Implement receive message.
+6. Store messages under `/meshtastic/messages`.
+7. Store node data under `/meshtastic/nodes`.
+8. Support GPS position sharing on/off.
+9. Show last-heard time and signal quality.
+
+Acceptance checks:
+
+- Two devices can exchange at least one text message, or the app is renamed/scoped honestly as an incomplete non-Meshtastic LoRa messenger.
+- Received messages appear in UI.
+- Messages persist after reboot.
+- GPS sharing can be disabled.
+
+---
+
+# Milestone M — Games
+
+Tasks:
+
+1. Games folder opens individual game apps.
+2. Tic-tac-toe has complete touch play, win/draw detection, reset, save, and resume.
+3. Minesweeper has reveal, flag, mine count, win/loss, difficulty, save, and resume.
+4. Chess has board rendering, piece selection, legal move validation, check detection, save, and resume.
+5. Go has 9x9 board, stone placement, captures, pass, local two-player, save, and resume.
+6. Each game must render inside 960x540.
+7. Each game must return to Games folder/Home.
+
+Acceptance checks:
+
+- Each game launches from the Games folder.
+- Each game accepts touch input.
+- Each game can be exited without reboot.
+- Save/resume works where required.
+
+---
+
+# Milestone N — Final hardening
+
+Tasks:
+
+1. Add crash/wdt reset logging.
+2. Add boot diagnostics screen or log mode.
+3. Add visible errors for missing SD, touch failure, GPS failure, battery failure, LoRa failure, and Wi-Fi failure.
+4. Audit memory use and PSRAM allocation.
+5. Ensure long network operations do not freeze the UI.
+6. Ensure all blocking scans have cancel/timeout behavior.
+7. Document known hardware limitations.
+8. Update README with Arduino-only quick start.
+
+Final release acceptance checks:
+
+- Clean Arduino IDE compile.
+- Upload succeeds.
+- Boot splash visible.
+- Touch works.
+- Launcher works.
+- Status bar displays real SD/GPS/Wi-Fi/battery states.
+- File Explorer can browse SD.
+- Settings can edit at least Wi-Fi and power settings.
+- No required feature is represented only by a stub or placeholder notice.
+- No PlatformIO command is required to build or verify the firmware.
+
+
 Below is a clean project-specific requirements list for the **LILYGO T5-4.7-S3 E-Paper Pro ESP32-S3 SX1262 LoRa 915 MHz TF Card RTC GPS board**. This is **not** the water valve project and **not** the e-ink schedule display project.
 
 The board target should be treated as a small **touch e-paper handheld operating shell** with multiple apps, persistent SD-card storage, GPS/location awareness, radio tools, offline map/weather caching, and light utility/game functions.
