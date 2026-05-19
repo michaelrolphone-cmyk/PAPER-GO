@@ -142,14 +142,42 @@ When Web Server app is running, these HTTP endpoints are available:
 - `GET /api/cache/stats` → map cache hit/miss counters.
 - `GET /api/radio/scans` → lists files under `/radio/scans`.
 - `GET /api/meshtastic/stats` → Meshtastic message/node file counters.
+- `GET /api/power/policy` → effective power policy (`lockTimeoutMs`, `deepSleepTimeoutMs`, `allowDeepSleep`, `deepSleepDurationSec`) and `configPresent`.
 
 SD-backed endpoints return `503` with `{"error":"sd not mounted"}` when the SD card is unavailable.
+`GET /api/power/policy` returns `503` with `{"error":"cache context unavailable"}` when cache context is not attached.
 - `GET /...` → static files served from `/webroot` with content-type detection.
 
 Example command:
 
 ```bash
 curl http://<device-ip>/api/health
+```
+
+## Power management behavior
+
+Power policy is enforced by the app manager and can be overridden with `/config/power.json` on SD.
+
+Default behavior:
+- After 30 seconds of no touch interaction, the active app transitions to the lock screen.
+- While on lock screen and not charging, Wi-Fi is disconnected to reduce idle power draw.
+- After 120 seconds of no touch interaction on lock screen, the device enters deep sleep for timer wake.
+
+`/config/power.json` fields:
+```json
+{
+  "lockTimeoutMs": 30000,
+  "deepSleepTimeoutMs": 120000,
+  "allowDeepSleep": true,
+  "deepSleepDurationSec": 60
+}
+```
+
+Example command to write config:
+```bash
+cat >/media/sdcard/config/power.json <<'JSON'
+{"lockTimeoutMs":45000,"deepSleepTimeoutMs":180000,"allowDeepSleep":true,"deepSleepDurationSec":90}
+JSON
 ```
 
 ## Touch gesture support

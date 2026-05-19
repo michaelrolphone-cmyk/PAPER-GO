@@ -22,7 +22,9 @@ void test_openapi_contains_required_paths() {
   TEST_ASSERT_TRUE(spec.find("/api/cache/stats") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/radio/scans") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/meshtastic/stats") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/power/policy") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("SD not mounted") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("cache context unavailable") != std::string::npos);
 }
 
 int main(int argc, char** argv) {
