@@ -75,8 +75,7 @@ void BoardHAL::endFrame(bool fullRefresh) {
   epd_poweron();
   epd_hl_update_screen(&g_hl, fullRefresh ? MODE_GC16 : MODE_GL16, epd_ambient_temperature());
   epd_poweroff();
-#else
-  Serial.printf("[DISPLAY] end frame refresh=%s\n", fullRefresh ? "full" : "partial");
+
 #endif
 }
 
@@ -84,8 +83,7 @@ void BoardHAL::clear(uint8_t gray) {
   uint8_t safeGray = clampGrayLevel(gray);
 #if PAPERGO_HAS_EPDIY
   for (int y = 0; y < BoardConfig::SCREEN_H; ++y) for (int x = 0; x < BoardConfig::SCREEN_W; ++x) setPixel4bpp(x,y,safeGray);
-#else
-  Serial.printf("[DISPLAY] clear gray=%u\n", safeGray);
+
 #endif
 }
 
@@ -95,8 +93,7 @@ void BoardHAL::fillRect(int x,int y,int w,int h,uint8_t gray) {
   uint8_t safeGray = clampGrayLevel(gray);
 #if PAPERGO_HAS_EPDIY
   for (int yy = rect.y; yy < rect.y + rect.h; ++yy) for (int xx = rect.x; xx < rect.x + rect.w; ++xx) setPixel4bpp(xx,yy,safeGray);
-#else
-  Serial.printf("[RECTF] %d,%d %dx%d g%u\n",rect.x,rect.y,rect.w,rect.h,safeGray);
+
 #endif
 }
 
@@ -105,10 +102,19 @@ void BoardHAL::drawRect(int x,int y,int w,int h,uint8_t gray) {
 }
 void BoardHAL::drawText(int x,int y,const String& text,uint8_t gray,uint8_t size) {
   uint8_t safeGray = clampGrayLevel(gray);
-  fillRect(x, y, static_cast<int>(text.length()) * 6 * size, 8 * size, safeGray);
-#if !PAPERGO_HAS_EPDIY
-  Serial.printf("[TEXT] %d,%d g%u s%u %s\n",x,y,safeGray,size,text.c_str());
-#endif
+  int cursorX = x;
+  for (size_t i = 0; i < text.length(); ++i) {
+    char c = text.charAt(i);
+    for (int row = 0; row < 7; ++row) {
+      uint8_t bits = glyph5x7Row(c, static_cast<uint8_t>(row));
+      for (int col = 0; col < 5; ++col) {
+        if ((bits >> (4 - col)) & 0x01) {
+          fillRect(cursorX + col * size, y + row * size, size, size, safeGray);
+        }
+      }
+    }
+    cursorX += 6 * size;
+  }
 }
 void BoardHAL::drawLine(int x1,int y1,int x2,int y2,uint8_t gray) {
   if (!clipLineToDisplay(x1, y1, x2, y2)) return;
@@ -119,17 +125,12 @@ void BoardHAL::drawLine(int x1,int y1,int x2,int y2,uint8_t gray) {
   while (true) {
 #if PAPERGO_HAS_EPDIY
     setPixel4bpp(x1, y1, safeGray);
-#else
-    ;
 #endif
     if (x1 == x2 && y1 == y2) break;
     int e2 = 2 * err;
     if (e2 >= dy) { err += dy; x1 += sx; }
     if (e2 <= dx) { err += dx; y1 += sy; }
   }
-#if !PAPERGO_HAS_EPDIY
-  Serial.printf("[LINE] %d,%d -> %d,%d g%u\n",x1,y1,x2,y2,safeGray);
-#endif
 }
 // rest unchanged
 TouchEvent BoardHAL::pollTouch() {
