@@ -15,6 +15,7 @@
 #include "LockScreenLogic.h"
 #include "MapTileLogic.h"
 #include "ScaffoldNoticeLogic.h"
+#include "RadioApiLogic.h"
 
 void SimpleListApp::titleBar(SystemServices& s, const String& t) {
   s.board->fillRect(0, BoardConfig::STATUS_BAR_H, BoardConfig::SCREEN_W, 40, 14);
@@ -197,9 +198,19 @@ void GpsMapApp::render(SystemServices& s) {
 
 void RadioScannerApp::onStart(SystemServices& s) {
   _signals.clear();
-  auto wifi=s.net->scanWifi(); _signals.insert(_signals.end(), wifi.begin(), wifi.end());
-  auto ble=s.radio->scanBLE(1500); _signals.insert(_signals.end(), ble.begin(), ble.end());
-  auto lora=s.radio->scanLoRaWindow(500); _signals.insert(_signals.end(), lora.begin(), lora.end());
+  RadioControlConfig cfg;
+  if (s.cache) {
+    cfg = parseRadioControlConfig(s.cache->readText("/config/radio.json", 1024));
+  }
+  if (cfg.wifiEnabled && s.net) {
+    auto wifi=s.net->scanWifi(); _signals.insert(_signals.end(), wifi.begin(), wifi.end());
+  }
+  if (cfg.bleEnabled && s.radio) {
+    auto ble=s.radio->scanBLE(cfg.bleScanMs); _signals.insert(_signals.end(), ble.begin(), ble.end());
+  }
+  if (cfg.loraEnabled && s.radio) {
+    auto lora=s.radio->scanLoRaWindow(cfg.loraScanMs); _signals.insert(_signals.end(), lora.begin(), lora.end());
+  }
   if (s.cache) {
     GpsFix fix = s.gps ? s.gps->fix() : GpsFix{};
     uint32_t ts = millis();

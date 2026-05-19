@@ -147,6 +147,8 @@ When Web Server app is running, these HTTP endpoints are available:
 - `GET /api/weather/cache` → returns `/cache/weather/current.json` when cached weather exists.
 - `GET /api/cache/stats` → map cache hit/miss counters.
 - `GET /api/radio/scans` → lists files under `/radio/scans`.
+- `GET /api/radio/control` → returns effective radio scanner controls (`wifiEnabled`, `bleEnabled`, `loraEnabled`, `bleScanMs`, `loraScanMs`).
+- `POST /api/radio/control` → updates and persists radio scanner controls to `/config/radio.json`.
 - `GET /api/meshtastic/stats` → Meshtastic message/node file counters.
 - `GET /api/gps/tracks` → lists saved GPS track files under `/gps/tracks` with file sizes (response names are normalized to file basenames).
 - `POST /api/gps/tracks/clear` → clears GPS track history by deleting files under `/gps/tracks`.
@@ -215,6 +217,18 @@ Springboard launcher gestures:
 ## Radio scan logs
 
 Each Radio Scanner run writes a timestamped scan log under `/radio/scans/scan-<millis>.log` including signal fields and GPS coordinates when a fix is available.
+
+Radio Scanner now reads `/config/radio.json` to control which drivers are scanned during a run and for how long:
+
+```json
+{
+  "wifiEnabled": true,
+  "bleEnabled": true,
+  "loraEnabled": true,
+  "bleScanMs": 1500,
+  "loraScanMs": 500
+}
+```
 
 ## Weather config and cache format
 
