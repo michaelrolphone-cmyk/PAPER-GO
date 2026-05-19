@@ -1281,6 +1281,10 @@ This should be treated as a miniature e-paper field computer OS, with the spring
 
 - [x] GPS best-fit location computed from recent fixes with basic outlier rejection.
 
+- [x] GPS track logging persists movement-filtered fixes to `/gps/tracks/current_track.csv` including time, lat/lon, altitude, speed, heading, HDOP, and sats.
+
+- [x] GPS track logging can be disabled by default and enabled via `/config/device.json` (`gpsTrackLogging`).
+
 - [x] Meshtastic storage includes `/meshtastic/config` in addition to messages/nodes.
 - [x] Meshtastic app surfaces SD storage counts for messages and nodes.
 

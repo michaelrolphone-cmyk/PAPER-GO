@@ -6,6 +6,9 @@
 #include "WebUtils.h"
 #include "StatusApiLogic.h"
 #include "GpsBestFitLogic.h"
+#include "GpsLogLogic.h"
+#include "GpsConfigLogic.h"
+#include "GpsTrackApiLogic.h"
 #include "BleAdvertLogic.h"
 #include "CacheApiLogic.h"
 #include "RadioApiLogic.h"
@@ -39,8 +42,12 @@ void GPSService::update() {
     _fix.altM = _gps.altitude.isValid() ? _gps.altitude.meters() : 0;
     _fix.speedKmph = _gps.speed.isValid() ? _gps.speed.kmph() : 0;
     _fix.courseDeg = _gps.course.isValid() ? _gps.course.deg() : 0;
+    _fix.epoch = (_gps.date.isValid() && _gps.time.isValid())
+      ? buildGpsEpochSeconds(_gps.date.year(), _gps.date.month(), _gps.date.day(), _gps.time.hour(), _gps.time.minute(), _gps.time.second())
+      : 0;
     computeHeading();
     updateBestFit();
+    logFixIfNeeded();
   }
 }
 void GPSService::updateBestFit() {
@@ -59,6 +66,40 @@ void GPSService::computeHeading() {
   _headingReliable = true;
 }
 
+
+
+void GPSService::refreshTrackLoggingConfig() {
+  uint32_t now = millis();
+  if ((int32_t)(now - _nextTrackConfigRefreshMs) < 0) return;
+  _nextTrackConfigRefreshMs = now + 10000;
+
+  if (!SD.cardType()) {
+    _trackLoggingEnabled = false;
+    return;
+  }
+  File f = SD.open("/config/device.json", FILE_READ);
+  if (!f) {
+    _trackLoggingEnabled = false;
+    return;
+  }
+  String body;
+  while (f.available() && body.length() < 1024) body += (char)f.read();
+  f.close();
+  _trackLoggingEnabled = parseGpsTrackLoggingEnabled(body, false);
+}
+
+void GPSService::logFixIfNeeded() {
+  refreshTrackLoggingConfig();
+  if (!_trackLoggingEnabled) return;
+  if (!SD.cardType()) return;
+  if (!shouldLogGpsFix(_fix, _lastLoggedFix, 5)) return;
+
+  File f = SD.open("/gps/tracks/current_track.csv", FILE_APPEND);
+  if (!f) return;
+  f.println(buildGpsTrackCsvLine(_fix, _heading, _headingReliable));
+  f.close();
+  _lastLoggedFix = _fix;
+}
 bool NetworkService::begin() {
   WiFi.mode(WIFI_STA);
   return connectSaved();
@@ -204,6 +245,38 @@ void WebServerService::start() {
     while (f && names.size() < 64) { names.push_back(String(f.name())); f = dir.openNextFile(); }
     dir.close();
     _server.send(200, "application/json", buildRadioScanListJson(names));
+  });
+
+  _server.on("/api/gps/tracks", [this](){
+    if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }
+    File dir = SD.open("/gps/tracks");
+    if (!dir) { _server.send(404, "application/json", "{\"error\":\"missing /gps/tracks\"}"); return; }
+    String body = "{\"files\":[";
+    bool first = true;
+    File f = dir.openNextFile();
+    while (f) {
+      if (!first) body += ",";
+      first = false;
+      body += "{\"name\":\"" + gpsTrackEntryNameForResponse(String(f.name())) + "\",\"size\":" + String((uint32_t)f.size()) + "}";
+      f = dir.openNextFile();
+    }
+    dir.close();
+    body += "]}";
+    _server.send(200, "application/json", body);
+  });
+  _server.on("/api/gps/tracks/clear", HTTP_POST, [this](){
+    if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }
+    File dir = SD.open("/gps/tracks");
+    if (!dir) { _server.send(404, "application/json", "{\"error\":\"missing /gps/tracks\"}"); return; }
+    size_t removed = 0;
+    File f = dir.openNextFile();
+    while (f) {
+      String path = gpsTrackEntryPathForRemoval(String(f.name()));
+      if (path.length() && SD.remove(path)) removed++;
+      f = dir.openNextFile();
+    }
+    dir.close();
+    _server.send(200, "application/json", String("{\"ok\":true,\"removed\":") + String((uint32_t)removed) + "}");
   });
   _server.on("/api/weather/cache", [this](){
     if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }

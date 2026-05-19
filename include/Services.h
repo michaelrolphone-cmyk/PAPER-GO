@@ -18,6 +18,8 @@ public:
   double computedHeadingDeg() const { return _heading; }
   bool headingReliable() const { return _headingReliable; }
 private:
+  void logFixIfNeeded();
+  void refreshTrackLoggingConfig();
   HardwareSerial _serial{1};
   TinyGPSPlus _gps;
   GpsFix _fix;
@@ -26,6 +28,9 @@ private:
   bool _headingReliable = false;
   std::deque<GpsFix> _history;
   GpsFix _bestFit;
+  GpsFix _lastLoggedFix;
+  bool _trackLoggingEnabled = false;
+  uint32_t _nextTrackConfigRefreshMs = 0;
   void computeHeading();
   void updateBestFit();
 };

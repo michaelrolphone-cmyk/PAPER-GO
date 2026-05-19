@@ -102,3 +102,25 @@ paths:
           description: Meshtastic message/node counts
         "503":
           description: SD not mounted
+
+  /api/gps/tracks:
+    get:
+      summary: List saved GPS track files
+      responses:
+        "200":
+          description: GPS track file list
+        "503":
+          description: SD not mounted
+        "404":
+          description: Missing tracks directory
+
+  /api/gps/tracks/clear:
+    post:
+      summary: Clear GPS track history by deleting files under /gps/tracks
+      responses:
+        "200":
+          description: Clear result including removed file count
+        "503":
+          description: SD not mounted
+        "404":
+          description: Missing tracks directory

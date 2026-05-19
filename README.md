@@ -142,6 +142,8 @@ When Web Server app is running, these HTTP endpoints are available:
 - `GET /api/cache/stats` → map cache hit/miss counters.
 - `GET /api/radio/scans` → lists files under `/radio/scans`.
 - `GET /api/meshtastic/stats` → Meshtastic message/node file counters.
+- `GET /api/gps/tracks` → lists saved GPS track files under `/gps/tracks` with file sizes (response names are normalized to file basenames).
+- `POST /api/gps/tracks/clear` → clears GPS track history by deleting files under `/gps/tracks`.
 
 SD-backed endpoints return `503` with `{"error":"sd not mounted"}` when the SD card is unavailable.
 - `GET /...` → static files served from `/webroot` with content-type detection.
@@ -222,3 +224,30 @@ GPS Map now computes a best-fit location from recent fixes with outlier rejectio
 ## Meshtastic storage
 
 Created paths: `/meshtastic/messages`, `/meshtastic/nodes`, and `/meshtastic/config`. Meshtastic app shows message/node file counts from SD.
+
+## GPS track logging
+
+`GPSService` now appends movement-filtered fixes (>=5 meters) to `/gps/tracks/current_track.csv`.
+
+CSV fields per row:
+
+`epoch,lat,lon,altM,speedKmph,headingDegOrMinusOne,hdop,sats`
+
+`epoch` is derived from GPS date/time when valid (UTC Unix seconds), otherwise `0`.
+
+`headingDegOrMinusOne` is `-1.0` when heading is unreliable (for example while nearly stationary).
+
+Track logging is disabled by default. Enable it by setting `/config/device.json`:
+
+```json
+{
+  "gpsTrackLogging": true
+}
+```
+
+
+GPS history clear command:
+
+```bash
+curl -X POST http://<device-ip>/api/gps/tracks/clear
+```
