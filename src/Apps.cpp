@@ -36,31 +36,38 @@ void SpringboardApp::onStart(SystemServices& s) {
 
 void SpringboardApp::render(SystemServices& s) {
   s.board->clear(15);
-  s.board->drawText(20, BoardConfig::STATUS_BAR_H + 18, "T5 Field OS", 0, 3);
-  const size_t pageSize = 15;
+  const size_t pageSize = 10;
+  s.board->drawRect(6, 6, BoardConfig::SCREEN_W - 12, BoardConfig::SCREEN_H - 12, 0);
+  s.board->drawRect(0, 0, BoardConfig::SCREEN_W, BoardConfig::SCREEN_H, 0);
+
+  s.board->drawText(24, 24, "14:37 | LoRa | GPS | SD | 76%", 0, 2);
+  s.board->drawLine(16, 62, BoardConfig::SCREEN_W - 16, 62, 0);
+  s.board->drawText(300, 78, "PAPER GO", 0, 2);
   size_t pages = springboardPageCount(_orderedIds.size(), pageSize);
   if (_page >= pages && pages > 0) _page = pages - 1;
   size_t start = springboardPageStart(_page, pageSize);
   size_t end = min(start + pageSize, _orderedIds.size());
-  const int cols=5, cellW=180, cellH=130, startX=25, startY=105;
+  const int cols=3, cellW=260, cellH=190, startX=80, startY=110;
   for(size_t i=start;i<end;i++) {
     size_t local = i - start;
-    int c=local%cols, r=local/cols, x=startX+c*cellW, y=startY+r*cellH;
-    s.board->drawRect(x,y,150,100,0);
+    int c=local%cols, r=local/cols;
+    int x = (local == 9) ? 350 : (startX + c*cellW);
+    int y = (local == 9) ? 680 : (startY + r*cellH);
+    s.board->drawRect(x,y,230,170,0);
     String appId = _orderedIds[i];
     bool supportsOffline = appSupportsOfflineMode(appId);
     bool wifiConnected = s.net && s.net->status().wifi;
     bool unavailable = springboardOnlineRequiredUnavailable(supportsOffline, wifiConnected);
     uint8_t titleColor = unavailable ? 5 : 0;
-    s.board->drawText(x+18,y+30,appDisplayNameById(appId).substring(0,10),titleColor,2);
-    s.board->drawText(x+18,y+70,appId,7,1);
+    s.board->drawText(x+18,y+38,appDisplayNameById(appId),titleColor,2);
+    s.board->drawText(x+18,y+130,appId,7,1);
     if (!supportsOffline) {
-      s.board->fillRect(x+72, y+6, 70, 20, 13);
-      s.board->drawRect(x+72, y+6, 70, 20, 0);
-      s.board->drawText(x+78, y+10, unavailable ? "OFFLINE" : "ONLINE", 0, 1);
+      s.board->fillRect(x+140, y+8, 80, 20, 13);
+      s.board->drawRect(x+140, y+8, 80, 20, 0);
+      s.board->drawText(x+148, y+12, unavailable ? "OFFLINE" : "ONLINE", 0, 1);
     }
   }
-  s.board->drawText(20, 510, String("Page ") + String(_page + 1) + "/" + String(max((size_t)1, pages)) + " swipe left/right", 0, 1);
+  s.board->drawText(20, 900, String("Page ") + String(_page + 1) + "/" + String(max((size_t)1, pages)) + " swipe left/right", 0, 1);
   if (_showOptions && _selectedIndex >= 0 && _selectedIndex < (int)_orderedIds.size()) {
     s.board->fillRect(250, 190, 460, 180, 13);
     s.board->drawRect(250, 190, 460, 180, 0);
@@ -70,7 +77,7 @@ void SpringboardApp::render(SystemServices& s) {
   }
 }
 void SpringboardApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
-  const size_t pageSize = 15;
+  const size_t pageSize = 10;
   size_t pages = springboardPageCount(_orderedIds.size(), pageSize);
   if (ev.type == TouchType::SwipeLeft && _page + 1 < pages) { _page++; return; }
   if (ev.type == TouchType::SwipeRight && _page > 0) { _page--; return; }
