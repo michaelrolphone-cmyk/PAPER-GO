@@ -157,12 +157,19 @@ String markdownRenderPreview(const String& markdown, size_t maxChars, size_t max
       appendWrapped(out, String("> ") + simplifyInlineMarkdown(trimmed), lines, maxLines, maxChars, wrapWidth);
       continue;
     }
-    if (trimmed == "---" || trimmed == "***") {
+    if (trimmed == "---" || trimmed == "***" || trimmed == "___") {
       appendWrapped(out, "----------------", lines, maxLines, maxChars, wrapWidth);
       continue;
     }
     if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-      appendWrapped(out, String("• ") + simplifyInlineMarkdown(trimmed.substring(2)), lines, maxLines, maxChars, wrapWidth);
+      String bulletBody = trimmed.substring(2);
+      if (bulletBody.startsWith("[ ] ")) {
+        appendWrapped(out, String("☐ ") + simplifyInlineMarkdown(bulletBody.substring(4)), lines, maxLines, maxChars, wrapWidth);
+      } else if (bulletBody.startsWith("[x] ") || bulletBody.startsWith("[X] ")) {
+        appendWrapped(out, String("☑ ") + simplifyInlineMarkdown(bulletBody.substring(4)), lines, maxLines, maxChars, wrapWidth);
+      } else {
+        appendWrapped(out, String("• ") + simplifyInlineMarkdown(bulletBody), lines, maxLines, maxChars, wrapWidth);
+      }
       continue;
     }
     int dot = trimmed.indexOf('.');
