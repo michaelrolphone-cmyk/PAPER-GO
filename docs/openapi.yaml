@@ -93,6 +93,23 @@ paths:
           description: SD not mounted
         "404":
           description: Missing scans directory
+  /api/radio/control:
+    get:
+      summary: Returns effective radio scanner control configuration
+      responses:
+        "200":
+          description: Radio scanner control payload
+        "503":
+          description: Cache context unavailable
+    post:
+      summary: Updates radio scanner control configuration written to /config/radio.json
+      responses:
+        "200":
+          description: Update accepted
+        "400":
+          description: Invalid radio control payload
+        "503":
+          description: Cache context unavailable
 
   /api/meshtastic/stats:
     get:

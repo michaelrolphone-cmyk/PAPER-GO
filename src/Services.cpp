@@ -261,6 +261,22 @@ void WebServerService::start() {
     dir.close();
     _server.send(200, "application/json", buildRadioScanListJson(names));
   });
+  _server.on("/api/radio/control", [this](){
+    if (!_cache) { _server.send(503, "application/json", "{\"error\":\"cache context unavailable\"}"); return; }
+    String raw = _cache->readText("/config/radio.json", 1024);
+    RadioControlConfig cfg = parseRadioControlConfig(raw);
+    _server.send(200, "application/json", buildRadioControlJson(cfg));
+  });
+  _server.on("/api/radio/control", HTTP_POST, [this](){
+    if (!_cache) { _server.send(503, "application/json", "{\"error\":\"cache context unavailable\"}"); return; }
+    RadioControlConfig cfg = parseRadioControlConfig(_server.arg("plain"));
+    if (!cfg.valid) {
+      _server.send(400, "application/json", "{\"error\":\"invalid radio control payload\"}");
+      return;
+    }
+    bool ok = _cache->writeText("/config/radio.json", buildRadioControlJson(cfg));
+    _server.send(ok ? 200 : 500, "application/json", String("{\"ok\":") + (ok ? "true" : "false") + "}");
+  });
 
   _server.on("/api/gps/tracks", [this](){
     if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }
