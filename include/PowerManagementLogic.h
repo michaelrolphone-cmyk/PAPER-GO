@@ -27,4 +27,6 @@ struct PowerConfig {
 
 PowerAction evaluatePowerAction(const PowerPolicy& policy, const PowerState& state, uint32_t nowMs);
 bool shouldDisableWifiForLowPower(bool lockScreenActive, bool charging);
+bool shouldPowerButtonEnterLowPower(const String& activeAppId);
+bool shouldPowerButtonReturnToOnline(const String& activeAppId);
 PowerConfig parsePowerConfig(const String& json);

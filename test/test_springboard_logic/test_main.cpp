@@ -40,6 +40,15 @@ void test_move_to_front() {
   TEST_ASSERT_FALSE(springboardMoveAppToFront(ids, 0));
 }
 
+void test_home_press_moves_to_first_page_only_when_needed() {
+  size_t page = 2;
+  TEST_ASSERT_TRUE(springboardHandleHomePress(page));
+  TEST_ASSERT_EQUAL(0, page);
+
+  TEST_ASSERT_FALSE(springboardHandleHomePress(page));
+  TEST_ASSERT_EQUAL(0, page);
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_page_count_and_start);
@@ -47,5 +56,6 @@ int main(int argc, char** argv) {
   RUN_TEST(test_online_required_unavailable_state);
   RUN_TEST(test_can_open_app_matrix);
   RUN_TEST(test_move_to_front);
+  RUN_TEST(test_home_press_moves_to_first_page_only_when_needed);
   return UNITY_END();
 }

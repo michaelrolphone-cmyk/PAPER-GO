@@ -103,6 +103,11 @@ void SpringboardApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
   s.requestOpenApp = appId;
 }
 
+bool SpringboardApp::handleHomeButton(SystemServices& s) {
+  (void)s;
+  return springboardHandleHomePress(_page);
+}
+
 void LockScreenApp::render(SystemServices& s) {
   s.board->clear(15);
   GpsFix f=s.gps->fix();

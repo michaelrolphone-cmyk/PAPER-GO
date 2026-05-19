@@ -49,3 +49,9 @@ bool springboardOnlineRequiredUnavailable(bool appSupportsOffline, bool wifiConn
 bool springboardCanOpenApp(bool appSupportsOffline, bool wifiConnected) {
   return !springboardOnlineRequiredUnavailable(appSupportsOffline, wifiConnected);
 }
+
+bool springboardHandleHomePress(size_t& page) {
+  if (page == 0) return false;
+  page = 0;
+  return true;
+}
