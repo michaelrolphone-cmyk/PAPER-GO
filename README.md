@@ -85,7 +85,7 @@ Expected boot log prefixes:
 
 ## Notes
 
-- `BoardHAL::drawText()` currently writes to Serial and can be wired to the real e-paper renderer.
+- Display drawing primitives (`clear`, `fillRect`, `drawLine`, `drawText`) render to the e-paper framebuffer when `epdiy` is available at build time.
 - Touch input currently has a stub event provider and is structured for GT911 integration.
 - GPS defaults to a secondary UART but pins must be confirmed against the exact board revision.
 - LoRa defaults are placeholders; wire to the actual SX1262 pins from the LILYGO schematic/examples.
