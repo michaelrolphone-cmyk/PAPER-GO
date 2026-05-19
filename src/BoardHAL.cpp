@@ -20,6 +20,14 @@ bool g_bootSplashDrawn = false;
 int g_fbWidth = BoardConfig::SCREEN_W;
 int g_fbHeight = BoardConfig::SCREEN_H;
 
+inline void powerDownDisplayPeripherals() {
+#if defined(ARDUINO_T5_E_PAPER_S3_V7)
+  epd_powerdown_lilygo_t5_47();
+#else
+  epd_poweroff();
+#endif
+}
+
 inline void setPixel4bpp(int x, int y, uint8_t gray) {
   if (!g_displayReady) return;
   if (x < 0 || y < 0 || x >= g_fbWidth || y >= g_fbHeight) return;
@@ -61,7 +69,7 @@ bool BoardHAL::begin() {
   }
   epd_poweron();
   epd_clear();
-  epd_poweroff();
+  powerDownDisplayPeripherals();
   g_displayReady = true;
   clear(15);
   fillRect(40, 40, 300, 120, 0);
@@ -86,7 +94,7 @@ void BoardHAL::endFrame(bool fullRefresh) {
   epd_poweron();
   const int mode = selectDisplayUpdateMode(fullRefresh, MODE_GC16, MODE_GL16);
   epd_hl_update_screen(&g_hl, static_cast<enum EpdDrawMode>(mode), epd_ambient_temperature());
-  epd_poweroff();
+  powerDownDisplayPeripherals();
 }
 
 void BoardHAL::clear(uint8_t gray) {

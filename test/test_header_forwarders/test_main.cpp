@@ -2,6 +2,11 @@
 #include <unity.h>
 
 #include "BootLogLogic.h"
+#include "AppRenderDecisionLogic.h"
+#include "DisplayFramebufferClipLogic.h"
+#include "DisplayPixelPackingLogic.h"
+#include "DisplayUpdateModeLogic.h"
+#include "ScaffoldNoticeLogic.h"
 #include "ChessLogic.h"
 #include "DisplayRenderLogic.h"
 #include "DisplayRefreshLogic.h"
