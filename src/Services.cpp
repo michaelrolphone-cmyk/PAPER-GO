@@ -103,6 +103,7 @@ std::vector<RadioSignal> NetworkService::scanWifi() {
 
 bool CacheService::begin() { ensureLayout(); return true; }
 void CacheService::ensureLayout() {
+  if (!SD.cardType()) return;
   const char* dirs[] = {"/apps","/cache","/cache/maps","/cache/weather","/cache/http","/documents","/documents/markdown","/documents/text","/webroot","/games","/gps","/gps/tracks","/gps/fixes","/meshtastic","/meshtastic/messages","/meshtastic/nodes","/meshtastic/config","/radio","/radio/scans","/config","/logs"};
   for (auto d: dirs) if (!SD.exists(d)) SD.mkdir(d);
 }
@@ -186,6 +187,7 @@ void WebServerService::start() {
     _server.send(200, "application/json", buildCacheStatsJson(_cache->mapCacheHitCount(), _cache->mapCacheMissCount()));
   });
   _server.on("/api/meshtastic/stats", [this](){
+    if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }
     size_t msgCount = 0, nodeCount = 0;
     File msgDir = SD.open("/meshtastic/messages");
     if (msgDir) { File f = msgDir.openNextFile(); while (f) { msgCount++; f = msgDir.openNextFile(); } msgDir.close(); }
@@ -194,6 +196,7 @@ void WebServerService::start() {
     _server.send(200, "application/json", buildMeshtasticStatsJson(msgCount, nodeCount));
   });
   _server.on("/api/radio/scans", [this](){
+    if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }
     File dir = SD.open("/radio/scans");
     if (!dir) { _server.send(404, "application/json", "{\"error\":\"missing /radio/scans\"}"); return; }
     std::vector<String> names;
@@ -203,6 +206,7 @@ void WebServerService::start() {
     _server.send(200, "application/json", buildRadioScanListJson(names));
   });
   _server.on("/api/weather/cache", [this](){
+    if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }
     if (!SD.exists("/cache/weather/current.json")) { _server.send(404, "application/json", "{\"error\":\"missing /cache/weather/current.json\"}"); return; }
     File f = SD.open("/cache/weather/current.json", FILE_READ);
     if (!f) { _server.send(500, "application/json", "{\"error\":\"failed to read weather cache\"}"); return; }
@@ -210,6 +214,7 @@ void WebServerService::start() {
     _server.send(200, "application/json", body);
   });
   _server.on("/api/apps/order", [this](){
+    if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }
     if (!SD.exists("/config/apps.json")) { _server.send(404, "application/json", "{\"error\":\"missing /config/apps.json\"}"); return; }
     File f = SD.open("/config/apps.json", FILE_READ);
     if (!f) { _server.send(500, "application/json", "{\"error\":\"failed to read /config/apps.json\"}"); return; }
@@ -219,6 +224,10 @@ void WebServerService::start() {
     _server.send(200, "application/json", body);
   });
   _server.on("/api/apps/install", HTTP_POST, [this](){
+    if (!_board || !_board->sdMounted()) {
+      _server.send(503, "application/json", buildAppManagementResultJson("install", "", false, "sd not mounted"));
+      return;
+    }
     AppManagementRequest req;
     if (!parseAppManagementRequest(_server.arg("plain"), req)) {
       _server.send(400, "application/json", buildAppManagementResultJson("install", "", false, "invalid request"));
@@ -236,6 +245,10 @@ void WebServerService::start() {
     _server.send(200, "application/json", buildAppManagementResultJson("install", req.id, true, "installed"));
   });
   _server.on("/api/apps/remove", HTTP_POST, [this](){
+    if (!_board || !_board->sdMounted()) {
+      _server.send(503, "application/json", buildAppManagementResultJson("remove", "", false, "sd not mounted"));
+      return;
+    }
     AppManagementRequest req;
     if (!parseAppManagementRequest(_server.arg("plain"), req)) {
       _server.send(400, "application/json", buildAppManagementResultJson("remove", "", false, "invalid request"));
@@ -253,6 +266,10 @@ void WebServerService::start() {
     _server.send(200, "application/json", buildAppManagementResultJson("remove", req.id, true, "removed"));
   });
   _server.on("/api/apps/update", HTTP_POST, [this](){
+    if (!_board || !_board->sdMounted()) {
+      _server.send(503, "application/json", buildAppManagementResultJson("update", "", false, "sd not mounted"));
+      return;
+    }
     AppManagementRequest req;
     if (!parseAppManagementRequest(_server.arg("plain"), req)) {
       _server.send(400, "application/json", buildAppManagementResultJson("update", "", false, "invalid request"));
@@ -279,6 +296,7 @@ void WebServerService::start() {
 void WebServerService::stop() { _server.stop(); _running=false; }
 void WebServerService::update() { if(_running) _server.handleClient(); }
 void WebServerService::servePath(const String& uri) {
+  if (!_board || !_board->sdMounted()) { _server.send(503, "text/plain", "SD not mounted"); return; }
   if(!isSafeWebUri(uri)) { _server.send(400, "text/plain", "Invalid URI"); return; }
   String path = mapUriToWebrootPath(uri);
   if(!SD.exists(path)) { _server.send(404, "text/plain", "Not found"); return; }

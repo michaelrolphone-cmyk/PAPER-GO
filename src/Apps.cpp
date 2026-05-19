@@ -171,6 +171,12 @@ void RadioScannerApp::render(SystemServices& s) {
 
 void MeshtasticApp::render(SystemServices& s) {
   titleBar(s,"Meshtastic");
+  if (!s.board->sdMounted()) {
+    s.board->drawText(20,110,"SD not mounted.",5,2);
+    s.board->drawText(20,145,"Meshtastic storage unavailable.",5,1);
+    s.board->drawText(20,175,"Insert SD to access /meshtastic data.",0,1);
+    return;
+  }
   size_t msgCount = 0, nodeCount = 0;
   File msgDir = SD.open("/meshtastic/messages");
   if (msgDir) { File f = msgDir.openNextFile(); while (f) { msgCount++; f = msgDir.openNextFile(); } msgDir.close(); }
@@ -263,6 +269,7 @@ void MarkdownReaderApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
 
 void FileExplorerApp::render(SystemServices& s) {
   titleBar(s,"Files: "+_path); int y=105;
+  if (!s.board->sdMounted()) { s.board->drawText(20,y,"SD not mounted",5,1); return; }
   File root=SD.open(_path); if(!root){s.board->drawText(20,y,"Cannot open path",5,1); return;}
 
   std::vector<FileEntryView> entries;
