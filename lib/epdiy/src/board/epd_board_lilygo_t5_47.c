@@ -1,4 +1,4 @@
-#include "epd_board.h"
+#include "../epd_board.h"
 
 #include <sdkconfig.h>
 #include "../output_i2s/i2s_data_bus.h"

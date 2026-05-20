@@ -1,5 +1,5 @@
 #include "driver/gpio.h"
-#include "epd_board.h"
+#include "../epd_board.h"
 
 #include <esp_log.h>
 #include <sdkconfig.h>

@@ -8,8 +8,8 @@
 
 #include <esp_log.h>
 
-#include "epdiy.h"
-#include "epd_internals.h"
+#include "../epdiy.h"
+#include "../epd_internals.h"
 
 // output a row to the display.
 #include "i2s_data_bus.h"

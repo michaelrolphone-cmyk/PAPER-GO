@@ -1,9 +1,9 @@
-#include "epd_board.h"
+#include "../epd_board.h"
 
 #include <stddef.h>
 #include <esp_log.h>
 
-#include "epdiy.h"
+#include "../epdiy.h"
 
 
 /**

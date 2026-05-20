@@ -1,6 +1,6 @@
 #include "lut.h"
 
-#include "epdiy.h"
+#include "../epdiy.h"
 #include "render_method.h"
 #include "render_context.h"
 
