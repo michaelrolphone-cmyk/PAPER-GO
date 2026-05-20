@@ -29,14 +29,17 @@ void AppManager::begin(SystemServices& s, const String& startId) {
     PowerConfig cfg = parsePowerConfig(raw);
     if (cfg.valid) _powerPolicy = cfg.policy;
   }
-  open(s, startId);
+  if (!open(s, startId) && startId != "springboard") {
+    open(s, "springboard");
+  }
 }
-void AppManager::open(SystemServices& s, const String& id) {
-  App* next=find(id); if(!next) return;
+bool AppManager::open(SystemServices& s, const String& id) {
+  App* next=find(id); if(!next) return false;
   String currentId = _active ? String(_active->id()) : String("");
   if(_active) _active->onStop(s);
   _nav.onOpen(currentId, id);
   _active=next; s.activeAppId=id; _active->onStart(s); render(s, true);
+  return true;
 }
 void AppManager::update(SystemServices& s) {
   if(!_active) return;
