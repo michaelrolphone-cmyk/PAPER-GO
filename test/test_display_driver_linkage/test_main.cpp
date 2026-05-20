@@ -15,6 +15,14 @@ void test_board_hal_includes_epdiy_header() {
   TEST_ASSERT_TRUE(boardHal.find("#include <epdiy.h>") != std::string::npos);
 }
 
+
+void test_arduino_build_embeds_epdiy_sources() {
+  const std::string embedded = readFile("src/epdiy_arduino_linker.cpp");
+  TEST_ASSERT_TRUE(embedded.find("#if defined(ARDUINO)") != std::string::npos);
+  TEST_ASSERT_TRUE(embedded.find("epd_board_v7.c") != std::string::npos);
+  TEST_ASSERT_TRUE(embedded.find("highlevel.c") != std::string::npos);
+}
+
 void test_include_and_root_epdiy_shims_exist_for_arduino_builds() {
   const std::string includeShim = readFile("include/epdiy.h");
   const std::string rootShim = readFile("epdiy.h");
@@ -32,6 +40,7 @@ void test_include_and_root_epdiy_shims_exist_for_arduino_builds() {
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_board_hal_includes_epdiy_header);
+  RUN_TEST(test_arduino_build_embeds_epdiy_sources);
   RUN_TEST(test_include_and_root_epdiy_shims_exist_for_arduino_builds);
   return UNITY_END();
 }
