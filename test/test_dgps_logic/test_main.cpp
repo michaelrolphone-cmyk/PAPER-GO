@@ -157,8 +157,13 @@ void test_backward_sequence_is_out_of_order() {
   TEST_ASSERT_EQUAL_UINT32(1, state.packetsOutOfOrder);
 }
 
+void test_payload_size_matches_protocol_spec() {
+  TEST_ASSERT_EQUAL_UINT32(96, sizeof(DgpsCorrectionPayloadV1));
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
+  RUN_TEST(test_payload_size_matches_protocol_spec);
   RUN_TEST(test_accepts_valid_packet_and_updates_state);
   RUN_TEST(test_rejects_crc_failure);
   RUN_TEST(test_sequence_tracking_and_duplicate_rejection);

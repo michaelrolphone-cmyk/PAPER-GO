@@ -81,7 +81,9 @@ pio device monitor --baud 115200
 ```
 
 Expected boot log prefixes:
-- `[BOOT]` for one-time initialization results (board/cache/gps/net/radio/web).
+- `[BOOT]` for one-time initialization results (board/cache/gps/net/radio/web/apps), including `=> skipped` for optional boot stages that are intentionally bypassed.
+- `[BOOT]` per-step timing lines (`<step> took <n>ms`).
+- `[BOOT] summary => total=<n>ms, ok=<n>, fail=<n>, skipped=<n>` after app registration starts.
 - `[NET]` for periodic connection-state snapshots (`wifi`, `ssid`, `ip`).
 - `EPD rotated size: <w>x<h>` and `T5 Field OS HAL online (boot splash: drawn)` confirm the first display smoke frame was submitted during boot.
 
@@ -196,7 +198,8 @@ curl http://<device-ip>/api/gps/dgps
 - Tap the same selected power row again:
   - left half of screen decreases/cycles value
   - right half of screen increases/cycles value
-- Editable rows persist to `/config/power.json` immediately (`lockTimeoutMs`, `deepSleepTimeoutMs`, `allowDeepSleep`, `deepSleepDurationSec`).
+- Editable rows persist to `/config/power.json` immediately (`lockTimeoutMs`, `deepSleepTimeoutMs`, `allowDeepSleep`, `deepSleepDurationSec`, `allowWifiInLockScreen`).
+- Settings screen rows now use shared common-control row rendering helpers for consistent form-input visuals and selected-state highlighting across reusable controls.
 
 ## Power management behavior
 
@@ -204,8 +207,8 @@ Power policy is enforced by the app manager and can be overridden with `/config/
 
 Default behavior:
 - After 30 seconds of no touch interaction, the active app transitions to the lock screen.
-- While on lock screen and not charging, Wi-Fi is disconnected to reduce idle power draw.
-- After 120 seconds of no touch interaction on lock screen, the device enters deep sleep for timer wake.
+- While on lock screen and not charging, Wi-Fi is disconnected to reduce idle power draw (default; configurable via `/config/power.json`).
+- After 120 seconds of no touch interaction on lock screen, the device enters deep sleep for timer wake (only when not charging).
 
 `/config/power.json` fields:
 ```json
@@ -213,14 +216,15 @@ Default behavior:
   "lockTimeoutMs": 30000,
   "deepSleepTimeoutMs": 120000,
   "allowDeepSleep": true,
-  "deepSleepDurationSec": 60
+  "deepSleepDurationSec": 60,
+  "allowWifiInLockScreen": false
 }
 ```
 
 Example command to write config:
 ```bash
 cat >/media/sdcard/config/power.json <<'JSON'
-{"lockTimeoutMs":45000,"deepSleepTimeoutMs":180000,"allowDeepSleep":true,"deepSleepDurationSec":90}
+{"lockTimeoutMs":45000,"deepSleepTimeoutMs":180000,"allowDeepSleep":true,"deepSleepDurationSec":90,"allowWifiInLockScreen":false}
 JSON
 ```
 
@@ -243,7 +247,7 @@ Global gestures: swipe-down returns to springboard (Home), swipe-right returns t
   - From lock-screen mode: returns to normal online operation and attempts Wi-Fi reconnect from saved credentials.
 
 Springboard launcher gestures:
-- Swipe left/right to move between app pages when there are more than 15 apps.
+- Swipe left/right to move between app pages; pagination now wraps around at the ends (left from last page returns to page 1, right from page 1 goes to the last page).
 - Long-press an app tile to open app options, then tap "Move to Front" to pin it to the first slot.
 - Online-required apps display an `ONLINE` badge when Wi-Fi is connected, and an `OFFLINE` unavailable badge when Wi-Fi is disconnected.
 - Tapping an app in `OFFLINE` unavailable state is blocked until Wi-Fi connectivity is restored.

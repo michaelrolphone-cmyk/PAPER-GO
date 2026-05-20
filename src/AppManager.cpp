@@ -74,7 +74,8 @@ void AppManager::update(SystemServices& s) {
   if(s.requestBack) { s.requestBack=false; String backId = _nav.popBackTarget(); if(backId.length()) open(s, backId); else open(s,"springboard"); return; }
   if(s.requestOpenApp.length()) { String id=s.requestOpenApp; s.requestOpenApp=""; open(s,id); return; }
   _powerState.lockScreenActive = String(_active->id()) == "lock";
-  PowerAction action = evaluatePowerAction(_powerPolicy, _powerState, now);
+  BatteryStatus batt = s.board->battery();
+  PowerAction action = evaluatePowerActionWithCharging(_powerPolicy, _powerState, now, batt.charging);
   if (action == PowerAction::EnterLockScreen && !_powerState.lockScreenActive) {
     _powerState.lastInteractionMs = now;
     open(s, "lock");
@@ -85,8 +86,7 @@ void AppManager::update(SystemServices& s) {
     return;
   }
 
-  BatteryStatus batt = s.board->battery();
-  if (shouldDisableWifiForLowPower(_powerState.lockScreenActive, batt.charging) && s.net->status().wifi) {
+  if (shouldDisableWifiForLowPower(_powerPolicy, _powerState.lockScreenActive, batt.charging) && s.net->status().wifi) {
     s.net->disconnect();
   }
 

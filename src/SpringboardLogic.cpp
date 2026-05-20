@@ -56,3 +56,21 @@ bool springboardHandleHomePress(size_t& page) {
   page = 0;
   return true;
 }
+
+
+bool springboardAdvancePage(size_t& page, size_t pageCount) {
+  if (pageCount <= 1) return false;
+  size_t next = page + 1;
+  if (next >= pageCount) next = 0;
+  if (next == page) return false;
+  page = next;
+  return true;
+}
+
+bool springboardRetreatPage(size_t& page, size_t pageCount) {
+  if (pageCount <= 1) return false;
+  size_t next = (page == 0) ? (pageCount - 1) : (page - 1);
+  if (next == page) return false;
+  page = next;
+  return true;
+}

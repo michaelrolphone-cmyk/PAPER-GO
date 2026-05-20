@@ -52,6 +52,26 @@ void test_home_press_moves_to_first_page_only_when_needed() {
   TEST_ASSERT_EQUAL(0, page);
 }
 
+
+void test_swipe_page_wrap_navigation() {
+  size_t page = 0;
+  TEST_ASSERT_TRUE(springboardRetreatPage(page, 3));
+  TEST_ASSERT_EQUAL(2, page);
+
+  TEST_ASSERT_TRUE(springboardAdvancePage(page, 3));
+  TEST_ASSERT_EQUAL(0, page);
+
+  TEST_ASSERT_TRUE(springboardAdvancePage(page, 3));
+  TEST_ASSERT_EQUAL(1, page);
+}
+
+void test_swipe_page_wrap_noop_for_single_page() {
+  size_t page = 0;
+  TEST_ASSERT_FALSE(springboardAdvancePage(page, 1));
+  TEST_ASSERT_FALSE(springboardRetreatPage(page, 1));
+  TEST_ASSERT_EQUAL(0, page);
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_page_count_and_start);
@@ -60,5 +80,7 @@ int main(int argc, char** argv) {
   RUN_TEST(test_can_open_app_matrix);
   RUN_TEST(test_move_to_front);
   RUN_TEST(test_home_press_moves_to_first_page_only_when_needed);
+  RUN_TEST(test_swipe_page_wrap_navigation);
+  RUN_TEST(test_swipe_page_wrap_noop_for_single_page);
   return UNITY_END();
 }

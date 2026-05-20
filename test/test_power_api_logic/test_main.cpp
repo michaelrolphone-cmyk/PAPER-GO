@@ -7,6 +7,7 @@ void test_build_power_policy_json_contains_fields() {
   policy.deepSleepTimeoutMs = 180000;
   policy.allowDeepSleep = false;
   policy.deepSleepDurationSec = 90;
+  policy.allowWifiInLockScreen = true;
 
   String json = buildPowerPolicyJson(policy, true);
   TEST_ASSERT_TRUE(json.indexOf("\"configPresent\":true") >= 0);
@@ -14,6 +15,7 @@ void test_build_power_policy_json_contains_fields() {
   TEST_ASSERT_TRUE(json.indexOf("\"deepSleepTimeoutMs\":180000") >= 0);
   TEST_ASSERT_TRUE(json.indexOf("\"allowDeepSleep\":false") >= 0);
   TEST_ASSERT_TRUE(json.indexOf("\"deepSleepDurationSec\":90") >= 0);
+  TEST_ASSERT_TRUE(json.indexOf("\"allowWifiInLockScreen\":true") >= 0);
 }
 
 int main(int argc, char** argv) {

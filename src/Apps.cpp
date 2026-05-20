@@ -21,6 +21,7 @@
 #include "WifiConfigLogic.h"
 #include "PowerManagementLogic.h"
 #include "DgpsApiLogic.h"
+#include "CommonControlsLogic.h"
 
 void SimpleListApp::titleBar(SystemServices& s, const String& t) {
   s.board->fillRect(0, BoardConfig::STATUS_BAR_H, BoardConfig::SCREEN_W, 40, 14);
@@ -73,7 +74,7 @@ void SpringboardApp::render(SystemServices& s) {
       s.board->drawText(x+80, y+12, unavailable ? "OFFLINE" : "ONLINE", 0, 1);
     }
   }
-  s.board->drawText(20, 500, String("Page ") + String(_page + 1) + "/" + String(max((size_t)1, pages)) + " swipe left/right", 0, 1);
+  s.board->drawText(20, 500, String("Page ") + String(_page + 1) + "/" + String(max((size_t)1, pages)) + " swipe left/right (wrap)", 0, 1);
   if (_showOptions && _selectedIndex >= 0 && _selectedIndex < (int)_orderedIds.size()) {
     s.board->fillRect(250, 190, 460, 180, 13);
     s.board->drawRect(250, 190, 460, 180, 0);
@@ -85,8 +86,14 @@ void SpringboardApp::render(SystemServices& s) {
 void SpringboardApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
   const size_t pageSize = 10;
   size_t pages = springboardPageCount(_orderedIds.size(), pageSize);
-  if (ev.type == TouchType::SwipeLeft && _page + 1 < pages) { _page++; return; }
-  if (ev.type == TouchType::SwipeRight && _page > 0) { _page--; return; }
+  if (ev.type == TouchType::SwipeLeft) {
+    springboardAdvancePage(_page, pages);
+    return;
+  }
+  if (ev.type == TouchType::SwipeRight) {
+    springboardRetreatPage(_page, pages);
+    return;
+  }
 
   if (ev.type == TouchType::LongPress) {
     int idx = springboardTappedIndexForPage(ev.x, ev.y, _page, pageSize);
@@ -656,19 +663,20 @@ void SettingsApp::render(SystemServices& s) {
   int y = 104;
   s.board->drawText(20, y, "Tap row to select. Tap selected row again (left/right) to edit.", 0, 1); y += 28;
   s.board->drawText(20, y, String(_state.hasWifiConfig ? "Wi-Fi: loaded" : "Wi-Fi: missing /config/wifi.json"), _state.hasWifiConfig ? 0 : 5, 1); y += 24;
-  s.board->drawText(20, y, "SSID: " + (_state.ssid.length() ? _state.ssid : String("(none)")), _state.selectedRow == 0 ? 2 : 0, 1); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "SSID", _state.ssid.length() ? _state.ssid : String("(none)"), _state.selectedRow == 0); y += 24;
   String masked = _state.password.length() ? String("********") : String("(empty)");
-  s.board->drawText(20, y, "Password: " + masked, _state.selectedRow == 1 ? 2 : 0, 1); y += 24;
-  s.board->drawText(20, y, "Lock timeout (ms): " + String(_state.power.lockTimeoutMs), _state.selectedRow == 2 ? 2 : 0, 1); y += 24;
-  s.board->drawText(20, y, "Deep sleep timeout (ms): " + String(_state.power.deepSleepTimeoutMs), _state.selectedRow == 3 ? 2 : 0, 1); y += 24;
-  s.board->drawText(20, y, String("Allow deep sleep: ") + (_state.power.allowDeepSleep ? "true" : "false"), _state.selectedRow == 4 ? 2 : 0, 1); y += 24;
-  s.board->drawText(20, y, "Deep sleep duration (s): " + String(_state.power.deepSleepDurationSec), _state.selectedRow == 5 ? 2 : 0, 1); y += 28;
+  drawCommonControlRow(*s.board, 20, y, "Password", masked, _state.selectedRow == 1); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "Lock timeout (ms)", String(_state.power.lockTimeoutMs), _state.selectedRow == 2); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "Deep sleep timeout (ms)", String(_state.power.deepSleepTimeoutMs), _state.selectedRow == 3); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "Allow deep sleep", commonControlBoolLabel(_state.power.allowDeepSleep), _state.selectedRow == 4); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "Deep sleep duration (s)", String(_state.power.deepSleepDurationSec), _state.selectedRow == 5); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "Allow Wi-Fi in lock", commonControlBoolLabel(_state.power.allowWifiInLockScreen), _state.selectedRow == 6); y += 28;
   s.board->drawText(20, y, "Changes to power settings are saved to /config/power.json", 0, 1);
 }
 
 void SettingsApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
   if (ev.type != TouchType::Tap) return;
-  const int tappedRow = settingsRowFromTapY(ev.y, 156, 24, 6);
+  const int tappedRow = settingsRowFromTapY(ev.y, 156, 24, 7);
   bool editSelected = settingsTapShouldEditSelectedRow(_state.selectedRow, tappedRow);
   if (tappedRow >= 0) _state.selectedRow = tappedRow;
   if (!editSelected) return;
@@ -679,6 +687,7 @@ void SettingsApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
   else if (_state.selectedRow == 3) { _state.power.deepSleepTimeoutMs = cycleDeepSleepTimeoutMs(_state.power.deepSleepTimeoutMs, increment); changed = true; }
   else if (_state.selectedRow == 4) { _state.power.allowDeepSleep = !_state.power.allowDeepSleep; changed = true; }
   else if (_state.selectedRow == 5) { _state.power.deepSleepDurationSec = cycleDeepSleepDurationSec(_state.power.deepSleepDurationSec, increment); changed = true; }
+  else if (_state.selectedRow == 6) { _state.power.allowWifiInLockScreen = !_state.power.allowWifiInLockScreen; changed = true; }
 
   if (_state.power.deepSleepTimeoutMs < _state.power.lockTimeoutMs) _state.power.deepSleepTimeoutMs = _state.power.lockTimeoutMs;
   if (changed) savePowerConfig(s);

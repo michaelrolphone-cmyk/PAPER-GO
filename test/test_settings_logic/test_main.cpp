@@ -15,10 +15,19 @@ void test_cycle_lock_timeout_wraps() {
   TEST_ASSERT_EQUAL_UINT32(300000, cycleLockTimeoutMs(10000, false));
 }
 
+
+void test_power_config_json_includes_lock_wifi_setting() {
+  PowerPolicy p;
+  p.allowWifiInLockScreen = true;
+  String json = buildPowerConfigJson(p);
+  TEST_ASSERT_TRUE(json.indexOf("\"allowWifiInLockScreen\":true") >= 0);
+}
+
 void setup() {
   UNITY_BEGIN();
   RUN_TEST(test_row_from_tap_y_bounds);
   RUN_TEST(test_cycle_lock_timeout_wraps);
+  RUN_TEST(test_power_config_json_includes_lock_wifi_setting);
   UNITY_END();
 }
 

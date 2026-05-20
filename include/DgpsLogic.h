@@ -37,9 +37,6 @@ struct DgpsCorrectionPayloadV1 {
   uint16_t fixAgeMs;
   uint8_t satsUsed;
   uint8_t satsView;
-  uint8_t nmeaMask;
-  uint8_t gsvTotal;
-  uint8_t gsvIndex;
   uint16_t avgCn0X10;
   uint16_t cn0Count;
   uint32_t visibleSatSig;

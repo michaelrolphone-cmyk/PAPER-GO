@@ -16,7 +16,8 @@ String buildPowerConfigJson(const PowerPolicy& policy) {
   body += "\"lockTimeoutMs\":" + String(policy.lockTimeoutMs) + ",";
   body += "\"deepSleepTimeoutMs\":" + String(policy.deepSleepTimeoutMs) + ",";
   body += "\"allowDeepSleep\":" + String(policy.allowDeepSleep ? "true" : "false") + ",";
-  body += "\"deepSleepDurationSec\":" + String(policy.deepSleepDurationSec);
+  body += "\"deepSleepDurationSec\":" + String(policy.deepSleepDurationSec) + ",";
+  body += "\"allowWifiInLockScreen\":" + String(policy.allowWifiInLockScreen ? "true" : "false");
   body += "}";
   return body;
 }
