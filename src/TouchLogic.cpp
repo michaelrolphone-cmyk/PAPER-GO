@@ -59,6 +59,8 @@ TouchEvent TouchClassifier::update(bool touching, int16_t x, int16_t y, uint32_t
 
   if (!touching && _active) {
     _active = false;
+    _lastX = x;
+    _lastY = y;
     int16_t totalDx = _lastX - _startX;
     int16_t totalDy = _lastY - _startY;
 

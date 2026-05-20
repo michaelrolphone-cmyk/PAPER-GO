@@ -64,17 +64,18 @@ bool BoardHAL::begin() {
     delay(55);
   }
 
-  auto probeI2cAddress = [](uint8_t addr)->bool {
-    Wire.beginTransmission(addr);
-    return Wire.endTransmission() == 0;
+  auto probeI2cAddress = [](uint8_t addr, void* ctx)->bool {
+    TwoWire* wire = static_cast<TwoWire*>(ctx);
+    wire->beginTransmission(addr);
+    return wire->endTransmission() == 0;
   };
-  _touchAddr = selectGt911Address(probeI2cAddress(0x5D), probeI2cAddress(0x14));
+  _touchAddr = probeGt911Address(probeI2cAddress, &Wire);
 
   Wire.beginTransmission(BoardConfig::RTC_ADDR);
   _rtcAvailable = isRtcI2cProbeSuccess(static_cast<uint8_t>(Wire.endTransmission()));
   Serial.printf("RTC probe 0x%02X: %s\n", BoardConfig::RTC_ADDR, _rtcAvailable ? "ok" : "failed");
   if (_touchAddr == 0) {
-    Serial.println("GT911 probe failed at 0x5D and 0x14");
+    Serial.println("GT911 probe failed at 0x14 and 0x5D");
   } else {
     Serial.printf("GT911 detected at 0x%02X\n", _touchAddr);
   }
