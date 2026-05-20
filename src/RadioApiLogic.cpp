@@ -28,11 +28,31 @@ static bool parseBoolJsonValue(const String& json, const char* key, bool* out) {
   return false;
 }
 
+
+String escapeJsonString(const String& input) {
+  String out;
+  out.reserve(input.length() + 8);
+  for (size_t i = 0; i < input.length(); ++i) {
+    char c = input.charAt(i);
+    switch (c) {
+      case '\\': out += "\\\\"; break;
+      case '"': out += "\\\""; break;
+      case '\b': out += "\\b"; break;
+      case '\f': out += "\\f"; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      case '\t': out += "\\t"; break;
+      default: out += c; break;
+    }
+  }
+  return out;
+}
+
 String buildRadioScanListJson(const std::vector<String>& fileNames) {
   String out = "{\"files\":[";
   for (size_t i=0;i<fileNames.size();++i) {
     if (i) out += ",";
-    out += "\"" + fileNames[i] + "\"";
+    out += "\"" + escapeJsonString(fileNames[i]) + "\"";
   }
   out += "]}";
   return out;

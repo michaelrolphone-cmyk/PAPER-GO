@@ -17,6 +17,7 @@
 #include "WifiConfigLogic.h"
 #include "PowerManagementLogic.h"
 #include "PowerApiLogic.h"
+#include "NetworkConnectLogic.h"
 
 static double bearingDeg(double lat1, double lon1, double lat2, double lon2) {
   const double d2r = PI / 180.0, r2d = 180.0 / PI;
@@ -113,10 +114,10 @@ void NetworkService::update() {
   _status.ip = WiFi.localIP();
 }
 bool NetworkService::connectSaved() {
-  if (!_cache) { WiFi.begin(); return true; }
-  String raw = _cache->readText("/config/wifi.json", 1024);
+  String raw;
+  if (_cache) raw = _cache->readText("/config/wifi.json", 1024);
+  if (!shouldAttemptSavedWifiConnect(raw, _cache != nullptr)) return false;
   WifiConfig cfg = parseWifiConfig(raw);
-  if (!cfg.valid) return false;
   WiFi.begin(cfg.ssid.c_str(), cfg.password.c_str());
   return true;
 }

@@ -29,6 +29,10 @@ public:
   String serialize() const;
   bool deserialize(const String& payload);
 
+  // Optional simple AI helper: chooses a legal move for the current player.
+  // Returns false when no legal move is available or game is finished.
+  bool chooseSimpleAiMove(uint8_t& outCellIndex) const;
+
 private:
   Cell _board[kBoardSize] = {Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty};
   Cell _currentPlayer = Cell::X;

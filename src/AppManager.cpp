@@ -15,7 +15,7 @@ static StatusBarSnapshot captureStatusSnapshot(SystemServices& s, App* active) {
   snapshot.batteryPercent = b.percent;
   snapshot.charging = b.charging;
   snapshot.gpsState = deriveGpsStatus(g, 15000, true);
-  snapshot.timeSource = resolveTimeSource({false, g.valid, n.wifi, false});
+  snapshot.timeSource = resolveTimeSource({s.board ? s.board->rtcAvailable() : false, g.valid, n.wifi, false});
   snapshot.activeTitle = active ? active->title() : "";
   return snapshot;
 }
@@ -112,7 +112,7 @@ void AppManager::render(SystemServices& s, bool full) {
   NetStatus n=s.net->status();
   GpsFix g=s.gps->fix();
   GpsStatusState gpsState = deriveGpsStatus(g, 15000, true);
-  TimeSource timeSource = resolveTimeSource({false, g.valid, n.wifi, false});
+  TimeSource timeSource = resolveTimeSource({s.board ? s.board->rtcAvailable() : false, g.valid, n.wifi, false});
   StatusBarSnapshot snapshot = captureStatusSnapshot(s, _active);
 
   bool renderBar = fullRefresh || shouldRenderStatusBar(_havePreviousStatusBar ? &_previousStatusBar : nullptr, snapshot);

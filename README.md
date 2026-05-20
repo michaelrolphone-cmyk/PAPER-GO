@@ -87,7 +87,7 @@ Expected boot log prefixes:
 ## Notes
 
 - Display initialization requires `epdiy.h` at build time; firmware compilation intentionally fails if the panel driver is missing.
-- Touch input is read from GT911 over I2C (`0x5D`) in `BoardHAL::pollTouch()`, including explicit controller status clear and release-state handling, then mapped into landscape display coordinates.
+- Touch input is read from GT911 over I2C in `BoardHAL::pollTouch()`, with runtime probe fallback across `0x5D` then `0x14`, explicit controller status clear, and release-state handling before mapping into landscape display coordinates.
 - Touch coordinate mapping uses `BoardConfig::TOUCH_MAX_X`/`TOUCH_MAX_Y` so raw panel coordinates are scaled to screen-space before gesture classification.
 - GPS defaults to a secondary UART but pins must be confirmed against the exact board revision.
 - LoRa defaults are placeholders; wire to the actual SX1262 pins from the LILYGO schematic/examples.
@@ -131,7 +131,7 @@ Create `/config/wifi.json` on SD to enable automatic station connection at boot:
 ```
 
 Behavior:
-- Boot: `NetworkService::begin()` loads `/config/wifi.json` and starts `WiFi.begin(ssid,password)` when valid config exists.
+- Boot: `NetworkService::begin()` loads `/config/wifi.json` and starts `WiFi.begin(ssid,password)` only when persisted credentials are present and parse as valid; otherwise no blind station connect is attempted.
 - Manual connect path: `NetworkService::connect(ssid, pass)` updates the same file for persistence.
 - Forget network: `NetworkService::forgetSaved()` clears stored credentials in `/config/wifi.json`.
 
