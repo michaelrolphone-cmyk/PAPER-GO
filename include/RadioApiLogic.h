@@ -14,3 +14,5 @@ struct RadioControlConfig {
 String buildRadioScanListJson(const std::vector<String>& fileNames);
 String buildRadioControlJson(const RadioControlConfig& cfg);
 RadioControlConfig parseRadioControlConfig(const String& json);
+
+String escapeJsonString(const String& input);

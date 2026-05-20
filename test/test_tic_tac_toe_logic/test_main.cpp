@@ -48,11 +48,49 @@ void test_save_and_resume_roundtrip() {
   TEST_ASSERT_EQUAL(TicTacToeGame::State::InProgress, resumed.state());
 }
 
+
+
+void test_simple_ai_picks_winning_move() {
+  TicTacToeGame game;
+  game.reset();
+  game.playMove(0); // X
+  game.playMove(3); // O
+  game.playMove(1); // X can win with 2
+
+  uint8_t move = 99;
+  TEST_ASSERT_TRUE(game.chooseSimpleAiMove(move));
+  TEST_ASSERT_EQUAL_UINT8(2, move);
+}
+
+void test_simple_ai_blocks_opponent_win() {
+  TicTacToeGame game;
+  game.reset();
+  game.playMove(0); // X
+  game.playMove(4); // O
+  game.playMove(1); // X threatens 2
+  game.playMove(8); // O
+
+  uint8_t move = 99;
+  TEST_ASSERT_TRUE(game.chooseSimpleAiMove(move));
+  TEST_ASSERT_EQUAL_UINT8(2, move);
+}
+
+void test_simple_ai_prefers_center_on_empty_board() {
+  TicTacToeGame game;
+  game.reset();
+  uint8_t move = 99;
+  TEST_ASSERT_TRUE(game.chooseSimpleAiMove(move));
+  TEST_ASSERT_EQUAL_UINT8(4, move);
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_new_game_starts_empty_with_x_turn);
   RUN_TEST(test_win_detection_and_invalid_replay);
   RUN_TEST(test_draw_detection);
   RUN_TEST(test_save_and_resume_roundtrip);
+  RUN_TEST(test_simple_ai_picks_winning_move);
+  RUN_TEST(test_simple_ai_blocks_opponent_win);
+  RUN_TEST(test_simple_ai_prefers_center_on_empty_board);
   return UNITY_END();
 }

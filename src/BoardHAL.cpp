@@ -5,6 +5,9 @@
 #include "DisplayRenderLogic.h"
 #include "DisplayUpdateModeLogic.h"
 #include "TouchInputLogic.h"
+#include "BatteryGaugeLogic.h"
+#include "TouchProbeLogic.h"
+#include "RtcProbeLogic.h"
 #include <SPI.h>
 
 #if __has_include(<epdiy.h>)
@@ -59,6 +62,21 @@ bool BoardHAL::begin() {
     delay(5);
     digitalWrite(BoardConfig::PIN_TOUCH_RST, HIGH);
     delay(55);
+  }
+
+  auto probeI2cAddress = [](uint8_t addr)->bool {
+    Wire.beginTransmission(addr);
+    return Wire.endTransmission() == 0;
+  };
+  _touchAddr = selectGt911Address(probeI2cAddress(0x5D), probeI2cAddress(0x14));
+
+  Wire.beginTransmission(BoardConfig::RTC_ADDR);
+  _rtcAvailable = isRtcI2cProbeSuccess(static_cast<uint8_t>(Wire.endTransmission()));
+  Serial.printf("RTC probe 0x%02X: %s\n", BoardConfig::RTC_ADDR, _rtcAvailable ? "ok" : "failed");
+  if (_touchAddr == 0) {
+    Serial.println("GT911 probe failed at 0x5D and 0x14");
+  } else {
+    Serial.printf("GT911 detected at 0x%02X\n", _touchAddr);
   }
   _lowlight.enabled = false;
   _lowlight.backlightOn = false;
@@ -160,10 +178,11 @@ TouchEvent BoardHAL::pollTouch() {
   constexpr size_t kMaxRead = 1 + (8 * 2);
   uint8_t status = 0;
   bool hadSample = false;
-  Wire.beginTransmission(BoardConfig::GT911_ADDR);
+  if (_touchAddr == 0) return _touchClassifier.update(false, _touchX, _touchY, millis());
+  Wire.beginTransmission(_touchAddr);
   Wire.write(static_cast<uint8_t>((kGt911StatusReg >> 8) & 0xFF));
   Wire.write(static_cast<uint8_t>(kGt911StatusReg & 0xFF));
-  if (Wire.endTransmission(false) == 0 && Wire.requestFrom(static_cast<int>(BoardConfig::GT911_ADDR), 1) == 1) {
+  if (Wire.endTransmission(false) == 0 && Wire.requestFrom(static_cast<int>(_touchAddr), 1) == 1) {
     status = Wire.read();
     uint8_t count = status & 0x0F;
     if (status & 0x80) {
@@ -173,10 +192,10 @@ TouchEvent BoardHAL::pollTouch() {
       uint8_t payload[kMaxRead];
       payload[0] = status;
       if (count > 0) {
-        Wire.beginTransmission(BoardConfig::GT911_ADDR);
+        Wire.beginTransmission(_touchAddr);
         Wire.write(static_cast<uint8_t>((kGt911Point1Reg >> 8) & 0xFF));
         Wire.write(static_cast<uint8_t>(kGt911Point1Reg & 0xFF));
-        if (Wire.endTransmission(false) == 0 && Wire.requestFrom(static_cast<int>(BoardConfig::GT911_ADDR), static_cast<int>(toRead - 1)) == static_cast<int>(toRead - 1)) {
+        if (Wire.endTransmission(false) == 0 && Wire.requestFrom(static_cast<int>(_touchAddr), static_cast<int>(toRead - 1)) == static_cast<int>(toRead - 1)) {
           for (size_t i = 1; i < toRead; ++i) payload[i] = Wire.read();
         }
       }
@@ -190,7 +209,7 @@ TouchEvent BoardHAL::pollTouch() {
         _touching = false;
         _touchTwoPoint = false;
       }
-      Wire.beginTransmission(BoardConfig::GT911_ADDR);
+      Wire.beginTransmission(_touchAddr);
       Wire.write(static_cast<uint8_t>((kGt911StatusReg >> 8) & 0xFF));
       Wire.write(static_cast<uint8_t>(kGt911StatusReg & 0xFF));
       Wire.write(static_cast<uint8_t>(0x00));
@@ -213,7 +232,46 @@ void BoardHAL::setTouchSample(bool touching, int16_t x, int16_t y) { _touchTwoPo
 void BoardHAL::setHomeButtonSample(bool pressed) { _homeButtonOverride = true; _homeButtonPressed = pressed; }
 void BoardHAL::setPowerButtonSample(bool pressed) { _powerButtonOverride = true; _powerButtonPressed = pressed; }
 void BoardHAL::setTouchSampleTwoPoint(bool touching, int16_t x1, int16_t y1, int16_t x2, int16_t y2) { _touchTwoPoint = true; _touching = touching; _touchX = x1; _touchY = y1; _touchX2 = x2; _touchY2 = y2; }
-BatteryStatus BoardHAL::battery() { BatteryStatus b; b.percent = -1; b.charging = false; return b; }
+BatteryStatus BoardHAL::battery() {
+  BatteryStatus b;
+  b.percent = -1;
+  b.charging = false;
+  b.voltage = 0;
+  b.currentMa = 0;
+
+  auto readWord = [](uint8_t device, uint8_t reg, uint16_t& out)->bool {
+    Wire.beginTransmission(device);
+    Wire.write(reg);
+    if (Wire.endTransmission(false) != 0) return false;
+    if (Wire.requestFrom(static_cast<int>(device), 2) != 2) return false;
+    uint8_t lo = Wire.read();
+    uint8_t hi = Wire.read();
+    out = decodeLittleEndianWord(lo, hi);
+    return true;
+  };
+
+  uint16_t soc = 0;
+  if (readWord(BoardConfig::BQ27220_ADDR, 0x2C, soc)) {
+    b.percent = clampBatteryPercent(static_cast<int>(soc));
+  }
+
+  uint16_t mv = 0;
+  if (readWord(BoardConfig::BQ27220_ADDR, 0x08, mv)) {
+    b.voltage = bq27220MilliVoltsToVolts(mv);
+  }
+
+  uint16_t currentRaw = 0;
+  if (readWord(BoardConfig::BQ27220_ADDR, 0x14, currentRaw)) {
+    b.currentMa = bq27220CurrentRawToMilliamps(currentRaw);
+  }
+
+  uint16_t chargeStatus = 0;
+  if (readWord(BoardConfig::BQ25896_ADDR, 0x0B, chargeStatus)) {
+    b.charging = bq25896ChargeStatusIndicatesCharging(chargeStatus);
+  }
+
+  return b;
+}
 void BoardHAL::sleepSeconds(uint32_t seconds) { esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL); esp_deep_sleep_start(); }
 void BoardHAL::setLowlightMode(bool enabled) {
   setLowlightMode(_lowlight, enabled);

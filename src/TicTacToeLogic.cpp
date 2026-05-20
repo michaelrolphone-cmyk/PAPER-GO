@@ -81,3 +81,51 @@ void TicTacToeGame::updateState() {
   }
   _state = State::Draw;
 }
+
+
+bool TicTacToeGame::chooseSimpleAiMove(uint8_t& outCellIndex) const {
+  if (_state != State::InProgress) return false;
+
+  auto linePick = [&](Cell player, uint8_t& pick)->bool {
+    static constexpr uint8_t lines[8][3] = {
+      {0,1,2}, {3,4,5}, {6,7,8},
+      {0,3,6}, {1,4,7}, {2,5,8},
+      {0,4,8}, {2,4,6}
+    };
+    for (const auto& line : lines) {
+      int playerCount = 0;
+      int emptyCount = 0;
+      uint8_t emptyCell = 0;
+      for (uint8_t idx : line) {
+        if (_board[idx] == player) playerCount++;
+        else if (_board[idx] == Cell::Empty) {
+          emptyCount++;
+          emptyCell = idx;
+        }
+      }
+      if (playerCount == 2 && emptyCount == 1) {
+        pick = emptyCell;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  uint8_t pick = 0;
+  if (linePick(_currentPlayer, pick)) { outCellIndex = pick; return true; }
+
+  Cell opponent = (_currentPlayer == Cell::X) ? Cell::O : Cell::X;
+  if (linePick(opponent, pick)) { outCellIndex = pick; return true; }
+
+  if (_board[4] == Cell::Empty) { outCellIndex = 4; return true; }
+
+  static constexpr uint8_t corners[4] = {0,2,6,8};
+  for (uint8_t c : corners) {
+    if (_board[c] == Cell::Empty) { outCellIndex = c; return true; }
+  }
+
+  for (uint8_t i = 0; i < kBoardSize; ++i) {
+    if (_board[i] == Cell::Empty) { outCellIndex = i; return true; }
+  }
+  return false;
+}

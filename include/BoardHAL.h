@@ -12,6 +12,7 @@ public:
   bool begin();
   bool beginSD();
   bool sdMounted() const { return _sdMounted; }
+  bool rtcAvailable() const { return _rtcAvailable; }
   void beginFrame();
   void endFrame(bool fullRefresh=false);
   void clear(uint8_t gray=15);
@@ -33,6 +34,7 @@ public:
   bool backlightOn() const { return shouldBacklightBeOn(_lowlight); }
 private:
   bool _sdMounted=false;
+  bool _rtcAvailable=false;
   TouchClassifier _touchClassifier;
   bool _touching=false;
   int16_t _touchX=0;
@@ -47,5 +49,6 @@ private:
   bool _powerButtonPressed=false;
   bool _powerButtonLast=false;
   LowlightState _lowlight;
+  uint8_t _touchAddr = 0;
   void applyBacklightState();
 };
