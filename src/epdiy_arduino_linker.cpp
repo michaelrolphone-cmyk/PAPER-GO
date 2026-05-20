@@ -19,11 +19,5 @@ extern "C" {
 #include "../lib/epdiy/src/board/pca9555.c"
 #include "../lib/epdiy/src/board/epd_board.c"
 #include "../lib/epdiy/src/board/epd_board_common.c"
-#include "../lib/epdiy/src/board/epd_board_lilygo_t5_47.c"
-#include "../lib/epdiy/src/board/epd_board_v2_v3.c"
-#include "../lib/epdiy/src/board/epd_board_v4.c"
-#include "../lib/epdiy/src/board/epd_board_v5.c"
-#include "../lib/epdiy/src/board/epd_board_v6.c"
-#include "../lib/epdiy/src/board/epd_board_v7.c"
 }
 #endif
