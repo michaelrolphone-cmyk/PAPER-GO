@@ -3293,3 +3293,154 @@ Minimum unit/integration tests:
 5. API payload/response shape tests for file endpoints.
 6. OpenAPI spec presence tests for all file API paths.
 
+
+### 8.12 File management implementation packet template (required per sub-feature)
+
+For each file-management sub-feature below, maintain a concrete packet before marking complete:
+
+1. Listing/pagination
+2. Metadata inspection
+3. Create/write
+4. Rename/move/copy
+5. Delete/recursive delete
+6. File-open routing
+7. Web file API parity
+8. File-ops logging/audit
+
+Packet fields:
+
+- Requirement id
+- Source files implementing behavior
+- UI entry path
+- API entry path
+- Config files used
+- Logs emitted
+- Failure matrix
+- Unit/integration tests
+- On-device validation notes
+
+### 8.13 File API request/response schemas (normative)
+
+#### GET /api/files/list
+
+Query params:
+
+- `path` (required)
+- `page` (optional, default 0)
+- `pageSize` (optional, default 100, max 500)
+- `sort` (`name|size|modified`)
+- `order` (`asc|desc`)
+- `filter` (`all|files|dirs`)
+- `ext` (optional extension filter, e.g. `.md`)
+
+Success payload:
+
+```json
+{
+  "ok": true,
+  "data": {
+    "path": "/documents",
+    "page": 0,
+    "pageSize": 100,
+    "total": 234,
+    "entries": [
+      {"name":"notes.md","path":"/documents/notes.md","dir":false,"size":1024,"modified":1700000000}
+    ]
+  }
+}
+```
+
+#### GET /api/files/meta
+
+Query:
+
+- `path` (required)
+
+Success payload includes: `path`, `dir`, `size`, `modified`, `readable`, `writable`.
+
+#### POST /api/files/write
+
+Request payload:
+
+```json
+{
+  "path": "/documents/text/example.txt",
+  "replace": true,
+  "content": "..."
+}
+```
+
+Rules:
+
+- `content` size must be bounded by configured max bytes.
+- `replace=false` must fail if file exists.
+
+#### POST /api/files/rename
+
+Request payload:
+
+```json
+{"path":"/documents/a.txt","newName":"b.txt"}
+```
+
+#### POST /api/files/move
+
+Request payload:
+
+```json
+{"path":"/documents/a.txt","dstPath":"/documents/archive/a.txt","replace":false}
+```
+
+#### POST /api/files/copy
+
+Request payload:
+
+```json
+{"path":"/documents/a.txt","dstPath":"/documents/archive/a.txt","replace":false}
+```
+
+#### POST /api/files/delete
+
+Request payload:
+
+```json
+{"path":"/documents/archive","recursive":true,"confirmToken":"..."}
+```
+
+### 8.14 Standard error payload contract
+
+All file APIs must return:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "forbidden_path",
+    "message": "Path outside allowed roots"
+  }
+}
+```
+
+Required error codes:
+
+- `invalid_path`
+- `forbidden_path`
+- `not_found`
+- `already_exists`
+- `io_error`
+- `payload_too_large`
+- `invalid_request`
+- `confirmation_required`
+
+### 8.15 File management acceptance checklist (must all pass)
+
+- [ ] FM.1 List API pagination verified with >1000 entries.
+- [ ] FM.2 Path traversal attempts rejected in UI and API.
+- [ ] FM.3 Rename/move/copy enforce replace policy and sandboxing.
+- [ ] FM.4 Recursive delete requires confirmation token and logs operations.
+- [ ] FM.5 File-open routing works for markdown/text/csv/log and unknown types.
+- [ ] FM.6 Sensitive config previews redact credentials.
+- [ ] FM.7 OpenAPI contains every `/api/files/*` endpoint with request/response docs.
+- [ ] FM.8 Unit tests cover success/failure for each operation and error code.
+- [ ] FM.9 On-device validation confirms stability under large directory operations.
+
