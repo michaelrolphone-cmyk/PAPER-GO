@@ -10,14 +10,14 @@ void test_page_count_and_start() {
 }
 
 void test_tapped_index_for_page() {
-  int idx0 = springboardTappedIndexForPage(90, 120, 0, 10);
+  int idx0 = springboardTappedIndexForPage(40, 100, 0, 10);
   TEST_ASSERT_EQUAL(0, idx0);
 
-  int idxPage1 = springboardTappedIndexForPage(90, 120, 1, 10);
+  int idxPage1 = springboardTappedIndexForPage(40, 100, 1, 10);
   TEST_ASSERT_EQUAL(10, idxPage1);
 
-  int settingsIdx = springboardTappedIndexForPage(360, 700, 0, 10);
-  TEST_ASSERT_EQUAL(9, settingsIdx);
+  int lastTileIdx = springboardTappedIndexForPage(760, 290, 0, 10);
+  TEST_ASSERT_EQUAL(9, lastTileIdx);
 
   int outside = springboardTappedIndexForPage(900, 520, 0, 10);
   TEST_ASSERT_EQUAL(-1, outside);

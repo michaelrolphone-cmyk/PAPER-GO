@@ -1,12 +1,12 @@
 #include "SpringboardLogic.h"
 
-static const int kCols = 3;
-static const int kCellW = 260;
+static const int kCols = 5;
+static const int kCellW = 180;
 static const int kCellH = 190;
-static const int kStartX = 80;
-static const int kStartY = 110;
-static const int kTileW = 230;
-static const int kTileH = 170;
+static const int kStartX = 30;
+static const int kStartY = 90;
+static const int kTileW = 160;
+static const int kTileH = 160;
 
 size_t springboardPageCount(size_t itemCount, size_t pageSize) {
   if (pageSize == 0) return 0;
@@ -27,10 +27,6 @@ int springboardTappedIndexForPage(int16_t x, int16_t y, size_t pageIndex, size_t
 
   int tileX = kStartX + c * kCellW;
   int tileY = kStartY + r * kCellH;
-  if (local == 9) {
-    tileX = 350;
-    tileY = 680;
-  }
   if (x > tileX + kTileW || y > tileY + kTileH) return -1;
   if (x < tileX || y < tileY) return -1;
   return static_cast<int>(springboardPageStart(pageIndex, pageSize)) + local;

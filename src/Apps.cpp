@@ -52,13 +52,13 @@ void SpringboardApp::render(SystemServices& s) {
   if (_page >= pages && pages > 0) _page = pages - 1;
   size_t start = springboardPageStart(_page, pageSize);
   size_t end = min(start + pageSize, _orderedIds.size());
-  const int cols=3, cellW=260, cellH=190, startX=80, startY=110;
+  const int cols=5, cellW=180, cellH=190, startX=30, startY=90;
   for(size_t i=start;i<end;i++) {
     size_t local = i - start;
     int c=local%cols, r=local/cols;
-    int x = (local == 9) ? 350 : (startX + c*cellW);
-    int y = (local == 9) ? 680 : (startY + r*cellH);
-    s.board->drawRect(x,y,230,170,0);
+    int x = startX + c*cellW;
+    int y = startY + r*cellH;
+    s.board->drawRect(x,y,160,160,0);
     String appId = _orderedIds[i];
     bool supportsOffline = appSupportsOfflineMode(appId);
     bool wifiConnected = s.net && s.net->status().wifi;
@@ -67,12 +67,12 @@ void SpringboardApp::render(SystemServices& s) {
     s.board->drawText(x+18,y+38,appDisplayNameById(appId),titleColor,2);
     s.board->drawText(x+18,y+130,appId,7,1);
     if (!supportsOffline) {
-      s.board->fillRect(x+140, y+8, 80, 20, 13);
-      s.board->drawRect(x+140, y+8, 80, 20, 0);
-      s.board->drawText(x+148, y+12, unavailable ? "OFFLINE" : "ONLINE", 0, 1);
+      s.board->fillRect(x+74, y+8, 80, 20, 13);
+      s.board->drawRect(x+74, y+8, 80, 20, 0);
+      s.board->drawText(x+80, y+12, unavailable ? "OFFLINE" : "ONLINE", 0, 1);
     }
   }
-  s.board->drawText(20, 900, String("Page ") + String(_page + 1) + "/" + String(max((size_t)1, pages)) + " swipe left/right", 0, 1);
+  s.board->drawText(20, 500, String("Page ") + String(_page + 1) + "/" + String(max((size_t)1, pages)) + " swipe left/right", 0, 1);
   if (_showOptions && _selectedIndex >= 0 && _selectedIndex < (int)_orderedIds.size()) {
     s.board->fillRect(250, 190, 460, 180, 13);
     s.board->drawRect(250, 190, 460, 180, 0);
