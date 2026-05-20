@@ -576,8 +576,6 @@ void GamesApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
     if (goCellAt(ev.x, ev.y, cx, cy)) _go.place(cx,cy);
   }
 }
-void SettingsApp::render(SystemServices& s) { titleBar(s,"Settings"); int y=110; s.board->drawText(20,y,settingsAppNoticeText(),5,2); y+=34; s.board->drawText(20,y,"Planned sections: Wi-Fi, GPS, LoRa, Display, Cache, Power, About",0,1); y+=26; s.board->drawText(20,y,"Diagnostics screens are scaffold-only in this build.",0,1); }
-void GamesApp::render(SystemServices& s) { titleBar(s,"Games"); const char* g[]={"Chess","Go","Tic-Tac-Toe","Minesweeper"}; for(int i=0;i<4;i++){ int x=40+i*220; s.board->drawRect(x,140,180,140,0); s.board->drawText(x+20,200,g[i],0,2);} s.board->drawText(20,330,gamesAppNoticeText(),5,1); }
 void SettingsApp::onStart(SystemServices& s) {
   _state.selectedRow = 0;
   loadFromConfig(s);

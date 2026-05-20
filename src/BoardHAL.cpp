@@ -275,7 +275,7 @@ BatteryStatus BoardHAL::battery() {
 }
 void BoardHAL::sleepSeconds(uint32_t seconds) { esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL); esp_deep_sleep_start(); }
 void BoardHAL::setLowlightMode(bool enabled) {
-  setLowlightMode(_lowlight, enabled);
+  ::setLowlightMode(_lowlight, enabled);
   applyBacklightState();
 }
 void BoardHAL::toggleBacklight() { toggleLowlightBacklight(_lowlight); applyBacklightState(); }
