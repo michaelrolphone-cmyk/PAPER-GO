@@ -1864,6 +1864,26 @@ Every app that uses network data shall:
 3. Avoid blocking UI while waiting for network.
 4. Store failed fetch state where useful.
 
+## 17.4 Dual-Core Execution Partitioning
+
+The ESP32-S3 dual-core runtime shall split responsibilities across cores to preserve UI responsiveness and deterministic input handling.
+
+Tasks:
+
+1. Pin UI interaction processing (touch classification, gesture routing, app input dispatch, navigation decisions) to one dedicated core.
+2. Pin UI rendering work (status bar render, app render preparation, framebuffer updates, display submit orchestration) to the same UI core as interaction handling.
+3. Pin data/network/sensor/compute workloads to the other core, including Wi-Fi/BLE/LoRa operations, web server update work, GPS parsing, cache I/O orchestration, and background compute tasks.
+4. Define and use explicit inter-core message/state handoff boundaries so shared mutable state is not directly mutated concurrently by both cores.
+5. Ensure long-running network or sensor operations on the non-UI core do not block gesture handling or screen navigation cadence on the UI core.
+6. Add watchdog-friendly yielding/time-slicing in both core loops/tasks and enforce bounded execution windows for per-cycle work.
+
+Acceptance checks:
+
+- With active network activity (scan/fetch/server) and GPS/radio updates running, touch gestures still respond within expected UI latency targets and page/app navigation remains fluid.
+- Rendering cadence remains stable while background data tasks run; no persistent UI starvation is observed.
+- Inter-core handoff path is covered by automated tests for queue/state contracts at the logic boundary level where hardware-free testing is possible.
+- No single-core fallback is used as the default runtime mode for production firmware.
+
 ---
 
 # 18. GPS Manager Requirements
@@ -2323,7 +2343,6 @@ Use this section as the implementation queue. Execute tasks in order, and only m
 
 ## 28.3 Milestone B — E-paper display implementation
 
-- [ ] B1.1 Replace default-build `epdiy.h` include path with LilyGo-EPD47 `epd_driver.h` path.
 - [ ] B1.2 Remove default-path dependency on `EpdiyHighlevelState`, waveform structs, and `epd_hl_*` APIs.
 - [ ] B1.3 Keep any optional epdiy path isolated and non-default.
 - [ ] B2.1 Allocate 4-bit framebuffer in PSRAM.

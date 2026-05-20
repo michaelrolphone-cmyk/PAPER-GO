@@ -13,6 +13,7 @@ struct PowerPolicy {
   uint32_t deepSleepTimeoutMs = 120000;
   bool allowDeepSleep = true;
   uint32_t deepSleepDurationSec = 60;
+  bool allowWifiInLockScreen = false;
 };
 
 struct PowerState {
@@ -26,7 +27,8 @@ struct PowerConfig {
 };
 
 PowerAction evaluatePowerAction(const PowerPolicy& policy, const PowerState& state, uint32_t nowMs);
-bool shouldDisableWifiForLowPower(bool lockScreenActive, bool charging);
+PowerAction evaluatePowerActionWithCharging(const PowerPolicy& policy, const PowerState& state, uint32_t nowMs, bool charging);
+bool shouldDisableWifiForLowPower(const PowerPolicy& policy, bool lockScreenActive, bool charging);
 bool shouldPowerButtonEnterLowPower(const String& activeAppId);
 bool shouldPowerButtonReturnToOnline(const String& activeAppId);
 PowerConfig parsePowerConfig(const String& json);

@@ -29,9 +29,12 @@ void test_enters_deep_sleep_only_from_lock_screen() {
 }
 
 void test_wifi_disable_policy() {
-  TEST_ASSERT_TRUE(shouldDisableWifiForLowPower(true, false));
-  TEST_ASSERT_FALSE(shouldDisableWifiForLowPower(true, true));
-  TEST_ASSERT_FALSE(shouldDisableWifiForLowPower(false, false));
+  PowerPolicy p;
+  TEST_ASSERT_TRUE(shouldDisableWifiForLowPower(p, true, false));
+  TEST_ASSERT_FALSE(shouldDisableWifiForLowPower(p, true, true));
+  TEST_ASSERT_FALSE(shouldDisableWifiForLowPower(p, false, false));
+  p.allowWifiInLockScreen = true;
+  TEST_ASSERT_FALSE(shouldDisableWifiForLowPower(p, true, false));
 }
 
 void test_power_button_toggle_policy() {
@@ -44,12 +47,13 @@ void test_power_button_toggle_policy() {
 }
 
 void test_parse_power_config_valid_values() {
-  PowerConfig cfg = parsePowerConfig("{\"lockTimeoutMs\":45000,\"deepSleepTimeoutMs\":180000,\"allowDeepSleep\":false,\"deepSleepDurationSec\":90}");
+  PowerConfig cfg = parsePowerConfig("{\"lockTimeoutMs\":45000,\"deepSleepTimeoutMs\":180000,\"allowDeepSleep\":false,\"deepSleepDurationSec\":90,\"allowWifiInLockScreen\":true}");
   TEST_ASSERT_TRUE(cfg.valid);
   TEST_ASSERT_EQUAL_UINT32(45000, cfg.policy.lockTimeoutMs);
   TEST_ASSERT_EQUAL_UINT32(180000, cfg.policy.deepSleepTimeoutMs);
   TEST_ASSERT_FALSE(cfg.policy.allowDeepSleep);
   TEST_ASSERT_EQUAL_UINT32(90, cfg.policy.deepSleepDurationSec);
+  TEST_ASSERT_TRUE(cfg.policy.allowWifiInLockScreen);
 }
 
 void test_parse_power_config_applies_clamps_and_defaults() {
@@ -59,6 +63,7 @@ void test_parse_power_config_applies_clamps_and_defaults() {
   TEST_ASSERT_EQUAL_UINT32(1000, cfg.policy.deepSleepTimeoutMs);
   TEST_ASSERT_TRUE(cfg.policy.allowDeepSleep);
   TEST_ASSERT_EQUAL_UINT32(10, cfg.policy.deepSleepDurationSec);
+  TEST_ASSERT_FALSE(cfg.policy.allowWifiInLockScreen);
 }
 
 void test_parse_power_config_invalid_payload() {
@@ -68,12 +73,28 @@ void test_parse_power_config_invalid_payload() {
   TEST_ASSERT_EQUAL_UINT32(120000, cfg.policy.deepSleepTimeoutMs);
   TEST_ASSERT_TRUE(cfg.policy.allowDeepSleep);
   TEST_ASSERT_EQUAL_UINT32(60, cfg.policy.deepSleepDurationSec);
+  TEST_ASSERT_FALSE(cfg.policy.allowWifiInLockScreen);
+}
+
+
+void test_deep_sleep_blocked_while_charging() {
+  PowerPolicy p;
+  p.lockTimeoutMs = 1000;
+  p.deepSleepTimeoutMs = 2000;
+  p.allowDeepSleep = true;
+  PowerState s;
+  s.lastInteractionMs = 0;
+  s.lockScreenActive = true;
+
+  TEST_ASSERT_EQUAL(PowerAction::None, evaluatePowerActionWithCharging(p, s, 2500, true));
+  TEST_ASSERT_EQUAL(PowerAction::EnterDeepSleep, evaluatePowerActionWithCharging(p, s, 2500, false));
 }
 
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_enters_lock_screen_after_idle_timeout);
   RUN_TEST(test_enters_deep_sleep_only_from_lock_screen);
+  RUN_TEST(test_deep_sleep_blocked_while_charging);
   RUN_TEST(test_wifi_disable_policy);
   RUN_TEST(test_power_button_toggle_policy);
   RUN_TEST(test_parse_power_config_valid_values);

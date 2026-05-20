@@ -9,3 +9,5 @@ bool springboardMoveAppToFront(std::vector<String>& orderedIds, size_t selectedI
 bool springboardOnlineRequiredUnavailable(bool appSupportsOffline, bool wifiConnected);
 bool springboardCanOpenApp(bool appSupportsOffline, bool wifiConnected);
 bool springboardHandleHomePress(size_t& page);
+bool springboardAdvancePage(size_t& page, size_t pageCount);
+bool springboardRetreatPage(size_t& page, size_t pageCount);

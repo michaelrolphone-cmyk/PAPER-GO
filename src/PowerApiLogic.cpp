@@ -7,6 +7,7 @@ String buildPowerPolicyJson(const PowerPolicy& policy, bool configPresent) {
   body += ",\"deepSleepTimeoutMs\":" + String(policy.deepSleepTimeoutMs);
   body += ",\"allowDeepSleep\":" + String(policy.allowDeepSleep ? "true" : "false");
   body += ",\"deepSleepDurationSec\":" + String(policy.deepSleepDurationSec);
+  body += ",\"allowWifiInLockScreen\":" + String(policy.allowWifiInLockScreen ? "true" : "false");
   body += "}";
   return body;
 }

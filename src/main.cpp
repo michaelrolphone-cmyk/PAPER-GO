@@ -30,8 +30,28 @@ GamesApp games;
 SettingsApp settings;
 
 void setup() {
+  uint32_t bootStart = millis();
+  uint32_t stepStart = bootStart;
+  uint8_t bootOkCount = 0;
+  uint8_t bootFailCount = 0;
+  uint8_t bootSkippedCount = 0;
+  auto logStep = [&](const String& step, bool ok, const String& detail = "") {
+    uint32_t now = millis();
+    Serial.println(bootStepLog(step, ok, detail));
+    Serial.println(bootTimingLog(step, now - stepStart));
+    stepStart = now;
+    if (ok) bootOkCount++; else bootFailCount++;
+  };
+  auto logSkippedStep = [&](const String& step, const String& detail = "") {
+    uint32_t now = millis();
+    Serial.println(bootStepSkippedLog(step, detail));
+    Serial.println(bootTimingLog(step, now - stepStart));
+    stepStart = now;
+    bootSkippedCount++;
+  };
+
   bool boardOk = board.begin();
-  Serial.println(bootStepLog("board.begin", boardOk, String("sd=") + boolLabel(board.sdMounted())));
+  logStep("board.begin", boardOk, String("sd=") + boolLabel(board.sdMounted()));
 
   services.board=&board;
   services.gps=&gps;
@@ -39,29 +59,32 @@ void setup() {
   services.cache=&cache;
   services.radio=&radio;
   services.web=&web;
-  Serial.println(bootStepLog("services.bind", true, "board/gps/net/cache/radio/web"));
+  logStep("services.bind", true, "board/gps/net/cache/radio/web");
 
-  bool cacheOk = false;
-  if(board.sdMounted()) cacheOk = cache.begin();
-  Serial.println(bootStepLog("cache.begin", cacheOk, board.sdMounted() ? "layout ensured" : "sd not mounted"));
+  if(board.sdMounted()) {
+    bool cacheOk = cache.begin();
+    logStep("cache.begin", cacheOk, "layout ensured");
+  } else {
+    logSkippedStep("cache.begin", "sd not mounted");
+  }
 
   net.attachCache(&cache);
-  Serial.println(bootStepLog("net.attachCache", true, "/config/wifi.json enabled"));
+  logStep("net.attachCache", true, "/config/wifi.json enabled");
 
   bool gpsOk = gps.begin();
-  Serial.println(bootStepLog("gps.begin", gpsOk, String("uart=") + BoardConfig::PIN_GPS_RX + "," + BoardConfig::PIN_GPS_TX));
+  logStep("gps.begin", gpsOk, String("uart=") + BoardConfig::PIN_GPS_RX + "," + BoardConfig::PIN_GPS_TX);
 
   bool netOk = net.begin();
   NetStatus ns = net.status();
-  Serial.println(bootStepLog("net.begin", netOk, String("wifi=") + boolLabel(ns.wifi) + ", ip=" + ns.ip.toString()));
+  logStep("net.begin", netOk, String("wifi=") + boolLabel(ns.wifi) + ", ip=" + ns.ip.toString());
 
   bool radioOk = radio.begin();
-  Serial.println(bootStepLog("radio.begin", radioOk, String("freq=") + String(BoardConfig::LORA_FREQ_MHZ, 1) + "MHz"));
+  logStep("radio.begin", radioOk, String("freq=") + String(BoardConfig::LORA_FREQ_MHZ, 1) + "MHz");
 
   web.attachContext(&board, &gps, &net, &cache);
-  Serial.println(bootStepLog("web.attachContext", true));
+  logStep("web.attachContext", true);
   bool webOk = web.begin();
-  Serial.println(bootStepLog("web.begin", webOk));
+  logStep("web.begin", webOk);
 
   apps.add(&springboard);
   apps.add(&lockscreen);
@@ -76,6 +99,8 @@ void setup() {
   apps.add(&games);
   apps.add(&settings);
   apps.begin(services, "springboard");
+  logStep("apps.begin", true, "springboard");
+  Serial.println(bootSummaryLog(millis() - bootStart, bootOkCount, bootFailCount, bootSkippedCount));
 }
 
 void loop() {
