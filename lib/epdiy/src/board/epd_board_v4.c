@@ -1,4 +1,4 @@
-#include "epd_board.h"
+#include "../epd_board.h"
 
 
 #include <sdkconfig.h>

@@ -1,4 +1,4 @@
-#include "epd_board.h"
+#include "../epd_board.h"
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
 #include "esp_log.h"

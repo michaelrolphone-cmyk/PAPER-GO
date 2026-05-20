@@ -1,5 +1,5 @@
-#include "epd_board.h"
-#include "epdiy.h"
+#include "../epd_board.h"
+#include "../epdiy.h"
 #include <stdint.h>
 
 #include "esp_log.h"

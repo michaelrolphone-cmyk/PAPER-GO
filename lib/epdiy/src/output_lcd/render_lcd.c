@@ -9,8 +9,8 @@
 #include <esp_log.h>
 
 #include "render_lcd.h"
-#include "epd_board.h"
-#include "epdiy.h"
+#include "../epd_board.h"
+#include "../epdiy.h"
 #include "../epd_internals.h"
 #include "lcd_driver.h"
 #include "../output_common/line_queue.h"
