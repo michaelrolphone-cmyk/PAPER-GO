@@ -2292,3 +2292,130 @@ This should be treated as a miniature e-paper field computer OS, with the spring
 - [x] Wi-Fi station boot-connect now loads persisted credentials from `/config/wifi.json` and supports save/forget flows in `NetworkService`.
 
 - [x] Boot serial diagnostics now report board/cache/gps/network/radio/web init results plus periodic Wi-Fi state snapshots.
+
+---
+
+# 28. Actionable Execution Backlog (Authoritative Task List)
+
+Use this section as the implementation queue. Execute tasks in order, and only mark a task complete after its acceptance criteria in this document have passed on-device with the Arduino IDE workflow.
+
+## 28.1 Program rules and build gate tasks
+
+- [ ] Enforce non-negotiable rules 0.1–0.12 across all new changes.
+- [ ] Verify Arduino IDE build workflow (board profile, PSRAM enabled, 16MB flash, USB CDC where needed).
+- [ ] Verify repository opens as a valid Arduino sketch with `PAPER-GO.ino` as entrypoint.
+- [ ] Verify include resolution works without PlatformIO-only include behavior.
+- [ ] Verify compile and runtime acceptance are evaluated in Arduino IDE (not PlatformIO as the definition of done).
+
+## 28.2 Milestone A — Arduino IDE conversion
+
+- [ ] A1.1 Ensure `PAPER-GO.ino` is the canonical sketch entrypoint and compiles.
+- [ ] A1.2 Ensure setup/loop handoff invokes real app lifecycle and services.
+- [ ] A1.3 Confirm no duplicate/parallel firmware tree is introduced.
+- [ ] A2.1 Remove PlatformIO-only statements from requirements of completion.
+- [ ] A2.2 Keep `platformio.ini` optional-only, not required by docs/checks.
+- [ ] A2.3 Update docs to reflect Arduino IDE as primary workflow.
+- [ ] A3.1 Fix project header visibility for Arduino include search path.
+- [ ] A3.2 Remove compile dependence on hidden PlatformIO `include/` behavior.
+- [ ] A3.3 Confirm clean Arduino compile resolves `BoardConfig.h`, `BoardHAL.h`, `Services.h`, `Apps.h`, and peers.
+
+## 28.3 Milestone B — E-paper display implementation
+
+- [ ] B1.1 Replace default-build `epdiy.h` include path with LilyGo-EPD47 `epd_driver.h` path.
+- [ ] B1.2 Remove default-path dependency on `EpdiyHighlevelState`, waveform structs, and `epd_hl_*` APIs.
+- [ ] B1.3 Keep any optional epdiy path isolated and non-default.
+- [ ] B2.1 Allocate 4-bit framebuffer in PSRAM.
+- [ ] B2.2 Implement `BoardHAL::clear` against framebuffer.
+- [ ] B2.3 Implement `BoardHAL::fillRect` against framebuffer.
+- [ ] B2.4 Implement `BoardHAL::drawRect` against framebuffer.
+- [ ] B2.5 Implement `BoardHAL::drawLine` against framebuffer.
+- [ ] B2.6 Implement `BoardHAL::drawText` against framebuffer.
+- [ ] B2.7 Implement `BoardHAL::beginFrame` lifecycle behavior.
+- [ ] B2.8 Implement `BoardHAL::endFrame` to push framebuffer to panel.
+- [ ] B2.9 Ensure framebuffer alloc failure is surfaced as a real failure.
+- [ ] B3.1 Use full refresh path when required by policy.
+- [ ] B3.2 Use partial refresh path only when allowed by dirty/refresh cadence logic.
+- [ ] B3.3 Render visible boot splash proving physical panel update.
+
+## 28.4 Milestone C — GT911 touch implementation
+
+- [ ] C1.1 Initialize I2C pins for touch bus.
+- [ ] C1.2 Probe GT911 at `0x14`.
+- [ ] C1.3 Probe GT911 at `0x5D` as fallback.
+- [ ] C1.4 Initialize touch driver and coordinate bounds to display geometry.
+- [ ] C1.5 Apply proven swap/mirror orientation for this board.
+- [ ] C2.1 Convert raw points into `TouchEvent` tap classification.
+- [ ] C2.2 Convert raw points into long-press classification.
+- [ ] C2.3 Convert raw points into swipe-up/down/left/right classification.
+- [ ] C2.4 Convert raw points into drag classification.
+- [ ] C2.5 Integrate touch with launcher/app navigation flows.
+
+## 28.5 Milestones D–N delivery tasks
+
+- [ ] D.1 Validate app layout, status bar geometry, and safe drawing bounds for 960x540.
+- [ ] E.1 Implement SD mount and failure handling.
+- [ ] E.2 Create/validate storage directory contract from section 3.3.
+- [ ] F.1 Integrate battery/charger readout via real board interfaces.
+- [ ] F.2 Integrate RTC time source and sync behavior.
+- [ ] F.3 Implement low-power/lock power transitions.
+- [ ] G.1 Deliver Settings app controls for display/network/GPS/cache/power toggles.
+- [ ] H.1 Deliver File Explorer browsing/sorting/open behavior.
+- [ ] H.2 Deliver Markdown Reader preview, scrolling, and saved position.
+- [ ] I.1 Deliver Wi-Fi manager credential flows and connection state handling.
+- [ ] I.2 Deliver URL Fetcher request/config/cache/offline fallback behavior.
+- [ ] I.3 Deliver Weather app rendering and stale/fresh cache behavior.
+- [ ] I.4 Deliver onboard Web Server static/API behavior.
+- [ ] J.1 Deliver GPS service, fix state, and app-facing location pipeline.
+- [ ] J.2 Deliver map tile renderer/cache/offline map state behavior.
+- [ ] K.1 Deliver Wi-Fi/BLE/LoRa scan views and scan logging.
+- [ ] L.1 Deliver Meshtastic-compatible node/message flows within implementation boundary.
+- [ ] M.1 Deliver Chess, Go, Tic-Tac-Toe, and Minesweeper app behavior.
+- [ ] N.1 Perform final hardening (performance, stability, power, storage, and UX checks).
+
+## 28.6 Requirements section taskization (Sections 1–27)
+
+- [ ] R1 Project identity and non-goals codified in docs and app behavior.
+- [ ] R2 Hardware target support verified for board, display, touch, storage, radio, and power.
+- [ ] R3 Firmware architecture implemented: app shell, stack, storage layout.
+- [ ] R4 Display/UI rules implemented: e-paper visual style, touch, shared gestures.
+- [ ] R5 Persistent status bar implemented with required indicators and time-source priority.
+- [ ] R6 Lock screen implemented with time/date/power/GPS/location preview and low-power behavior.
+- [ ] R7 Springboard launcher implemented with layout, ordering, and app-state affordances.
+- [ ] R8 GPS Map app implemented with heading, best-fit location, caching, and offline behavior.
+- [ ] R9 Radio Scanner app implemented for Wi-Fi/BLE/LoRa and scan-log persistence.
+- [ ] R10 Meshtastic app implemented for node/message/storage requirements.
+- [ ] R11 URL Fetcher app implemented for configured fetch, render, cache, and fallback.
+- [ ] R12 Markdown Reader implemented with feature support and bounded rendering.
+- [ ] R13 File Explorer implemented with browsing, sort, and safety constraints.
+- [ ] R14 Weather app implemented with required display fields and cache semantics.
+- [ ] R15 Web Server implemented with webroot serving and required API surface.
+- [ ] R16 Games folder and shared game requirements implemented.
+- [ ] R17 Network manager implemented with config, runtime use, and offline-first behavior.
+- [ ] R18 GPS manager implemented with shared service, logging, and privacy gates.
+- [ ] R19 Cache manager implemented with map priority and cache controls.
+- [ ] R20 Power management implemented with power modes and battery display.
+- [ ] R21 Settings app implemented with device + developer settings.
+- [ ] R22 Data persistence implemented with config storage + internal fallback.
+- [ ] R23 Logging requirements implemented for boot/services/app/network/runtime diagnostics.
+- [ ] R24 Security requirements implemented for credentials, web server, and location data.
+- [ ] R25 Feasibility constraints reflected in implementation decisions and docs.
+- [ ] R26 Suggested phases mapped to concrete execution order in tracker.
+- [ ] R27 Initial app list verified in shipped firmware launcher.
+
+## 28.7 API, spec, and test execution tasks
+
+- [ ] T1 Add/update unit tests for each new feature before marking feature task complete.
+- [ ] T2 Update existing tests when behavior changes; add regression tests for fixed defects.
+- [ ] T3 Keep `docs/openapi.yaml` synchronized for every API contract change.
+- [ ] T4 Verify every documented API endpoint in automated tests.
+- [ ] T5 Keep README API/CLI usage examples aligned with implemented behavior.
+
+## 28.8 Release completion gate (must all be true)
+
+- [ ] GATE.1 Arduino IDE clean compile succeeds on target board profile.
+- [ ] GATE.2 Core interaction loop works on-device (launcher, touch, nav, app open/close).
+- [ ] GATE.3 Display updates visibly and correctly with e-paper refresh policy.
+- [ ] GATE.4 SD, network, GPS, radio, and cache subsystems pass runtime checks.
+- [ ] GATE.5 Unit/integration/API tests pass for modified scope.
+- [ ] GATE.6 OpenAPI, README, and requirements tracker reflect final delivered behavior.
+
