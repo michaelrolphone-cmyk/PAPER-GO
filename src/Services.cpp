@@ -18,6 +18,18 @@
 #include "PowerManagementLogic.h"
 #include "PowerApiLogic.h"
 #include "NetworkConnectLogic.h"
+#include "DgpsApiLogic.h"
+#include "MapApiLogic.h"
+#include "MapPrefetchLogic.h"
+#include "MapCacheOpsLogic.h"
+#include "FileApiLogic.h"
+#include "MapConfigLogic.h"
+
+namespace {
+static Module dgpsMod(BoardConfig::PIN_LORA_NSS, BoardConfig::PIN_LORA_DIO1, BoardConfig::PIN_LORA_RST, BoardConfig::PIN_LORA_BUSY);
+static SX1262 dgpsRadio(&dgpsMod);
+static bool dgpsRadioInit = false;
+}
 
 static double bearingDeg(double lat1, double lon1, double lat2, double lon2) {
   const double d2r = PI / 180.0, r2d = 180.0 / PI;
@@ -33,6 +45,18 @@ bool GPSService::begin() {
   return true;
 }
 void GPSService::update() {
+  if (!dgpsRadioInit) {
+    dgpsRadioInit = (dgpsRadio.begin(BoardConfig::LORA_FREQ_MHZ) == RADIOLIB_ERR_NONE);
+  }
+  if (dgpsRadioInit) {
+    uint8_t buf[sizeof(DgpsCorrectionPayloadV1)]{};
+    size_t len = sizeof(buf);
+    int rs = dgpsRadio.receive(buf, len);
+    if (rs == RADIOLIB_ERR_NONE) {
+      handleReceivedCorrection(buf, len, millis(), dgpsRadio.getRSSI(), dgpsRadio.getSNR(), _dgpsState, _dgpsPacketStats);
+    }
+  }
+
   while (_serial.available()) _gps.encode(_serial.read());
   if (_gps.location.isUpdated()) {
     _prev = _fix;
@@ -48,6 +72,18 @@ void GPSService::update() {
     _fix.epoch = (_gps.date.isValid() && _gps.time.isValid())
       ? buildGpsEpochSeconds(_gps.date.year(), _gps.date.month(), _gps.date.day(), _gps.time.hour(), _gps.time.minute(), _gps.time.second())
       : 0;
+    _dgpsQuality = evaluateDgpsQuality(_fix, millis(), _dgpsState);
+    _dgpsAgeMs = _dgpsState.hasRecentPacket ? (millis() - _dgpsState.lastReceiveMillis) : 0;
+    _usingDgps = computeCorrectedRoverPosition(_fix, millis(), _dgpsState, 0.5);
+    _correctedFix = _fix;
+    if (_usingDgps) {
+      const double latRad = _dgpsState.baseOriginLatDeg * PI / 180.0;
+      const double northM = _dgpsState.roverCorrectedNCm / 100.0;
+      const double eastM = _dgpsState.roverCorrectedECm / 100.0;
+      _correctedFix.lat = _dgpsState.baseOriginLatDeg + (northM / 6378137.0) * 180.0 / PI;
+      _correctedFix.lon = _dgpsState.baseOriginLonDeg + (eastM / (6378137.0 * cos(latRad))) * 180.0 / PI;
+      _correctedFix.altM = _dgpsState.baseOriginAltM + _dgpsState.roverCorrectedUCm / 100.0;
+    }
     computeHeading();
     updateBestFit();
     logFixIfNeeded();
@@ -279,6 +315,90 @@ void WebServerService::start() {
     _server.send(ok ? 200 : 500, "application/json", String("{\"ok\":") + (ok ? "true" : "false") + "}");
   });
 
+  _server.on("/api/gps/status", [this](){
+    if (!_gps) { _server.send(503, "application/json", "{\"error\":\"gps context unavailable\"}"); return; }
+    _server.send(200, "application/json", buildDgpsStatusJson(_gps->fix(), _gps->activeFix(), _gps->usingDgps(), _gps->dgpsQuality(), _gps->dgpsAgeMs(), _gps->dgpsState(), _gps->dgpsPacketStats()));
+  });
+  _server.on("/api/gps/dgps", [this](){
+    if (!_gps) { _server.send(503, "application/json", "{\"error\":\"gps context unavailable\"}"); return; }
+    _server.send(200, "application/json", buildDgpsPacketJson(_gps->dgpsState(), _gps->dgpsAgeMs()));
+  });
+  _server.on("/api/maps/status", [this](){
+    if (!_gps || !_cache) { _server.send(503, "application/json", "{\"error\":\"map context unavailable\"}"); return; }
+    MapConfig cfg = parseMapConfig(_cache->readText("/config/maps.json", 1024));
+    if (!cfg.valid) cfg = sanitizeMapConfig(MapConfig{});
+    MapTileCoord center = mapTileFromFix(_gps->activeFix(), (uint8_t)cfg.zoom);
+    uint16_t total=0,cached=0;
+    if (center.valid) {
+      for (int dy=-1; dy<=1; ++dy) for (int dx=-1; dx<=1; ++dx) {
+        int32_t tx=center.x+dx, ty=center.y+dy; if(tx<0||ty<0) continue; total++;
+        bool hit=_cache->hasFile(_cache->mapTilePath(cfg.provider, cfg.zoom, (uint32_t)tx, (uint32_t)ty)); if(hit) cached++;
+      }
+    }
+    CacheCoverageState cov = deriveCacheCoverageState(total, cached);
+    _server.send(200, "application/json", buildMapsStatusJson(cfg, center, cov, _cache->mapCacheHitCount(), _cache->mapCacheMissCount(), _gps->usingDgps(), dgpsQualityStateLabel(_gps->dgpsQuality())));
+  });
+  _server.on("/api/maps/prefetch", HTTP_POST, [this](){
+    if (!_cache) { _server.send(503, "application/json", "{\"error\":\"cache context unavailable\"}"); return; }
+    MapPrefetchRequest req = parseMapPrefetchRequest(_server.arg("plain"));
+    if (!req.valid) { _server.send(400, "application/json", "{\"error\":\"invalid prefetch payload\"}"); return; }
+    String jobId = String(millis());
+    _cache->appendLog("map_prefetch.log", buildMapPrefetchJobLine(jobId, req));
+    _server.send(200, "application/json", buildMapsPrefetchResultJson(true, jobId));
+  });
+  _server.on("/api/maps/cache", [this](){
+    if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }
+    String provider = "default";
+    if (_cache) { MapConfig cfg = parseMapConfig(_cache->readText("/config/maps.json", 1024)); if (cfg.valid) provider = cfg.provider; }
+    String root = String("/cache/maps/") + provider;
+    File dir = SD.open(root);
+    if (!dir) { _server.send(200, "application/json", buildMapsCacheStatsJson(provider, 0, 0)); return; }
+    uint32_t files=0; uint64_t bytes=0; File f=dir.openNextFile();
+    while (f) { if (!f.isDirectory()) { files++; bytes += f.size(); } f = dir.openNextFile(); }
+    dir.close();
+    _server.send(200, "application/json", buildMapsCacheStatsJson(provider, files, bytes));
+  });
+  _server.on("/api/maps/cache/clear", HTTP_POST, [this](){
+    if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }
+    String provider = "default";
+    if (_cache) { MapConfig cfg = parseMapConfig(_cache->readText("/config/maps.json", 1024)); if (cfg.valid) provider = cfg.provider; }
+    String root = String("/cache/maps/") + provider;
+    File dir = SD.open(root);
+    if (!dir) { _server.send(200, "application/json", buildMapsCacheClearJson(true, provider, 0)); return; }
+    uint32_t removed = removeFilesRecursively(SD, root);
+    dir.close();
+    _server.send(200, "application/json", buildMapsCacheClearJson(true, provider, removed));
+  });
+  _server.on("/api/files/list", [this](){
+    if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", fileApiErrorJson("io_error","sd not mounted")); return; }
+    String path = normalizeFilePath(_server.arg("path"));
+    if (!isAllowedFilePath(path)) { _server.send(403, "application/json", fileApiErrorJson("forbidden_path","Path outside allowed roots")); return; }
+    int page = _server.hasArg("page") ? _server.arg("page").toInt() : 0;
+    int pageSize = _server.hasArg("pageSize") ? _server.arg("pageSize").toInt() : 100;
+    if (page < 0) page = 0; if (pageSize <= 0) pageSize = 100; if (pageSize > 500) pageSize = 500;
+    File dir = SD.open(path);
+    if (!dir || !dir.isDirectory()) { _server.send(404, "application/json", fileApiErrorJson("not_found","Directory not found")); return; }
+    std::vector<FileListEntry> all;
+    File f = dir.openNextFile();
+    while (f) { FileListEntry e; e.name=String(f.name()); e.path=String(f.name()); e.dir=f.isDirectory(); e.size=(uint32_t)f.size(); all.push_back(e); f = dir.openNextFile(); }
+    dir.close();
+    int total = (int)all.size();
+    int start = page * pageSize;
+    std::vector<FileListEntry> entries;
+    for (int i=start;i<start+pageSize && i<total;i++) entries.push_back(all[(size_t)i]);
+    _server.send(200, "application/json", fileApiOkJson(fileListJson(path, page, pageSize, total, entries)));
+  });
+  _server.on("/api/files/delete", HTTP_POST, [this](){
+    if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", fileApiErrorJson("io_error","sd not mounted")); return; }
+    String body = _server.arg("plain");
+    int p0 = body.indexOf("\"path\":\"");
+    if (p0 < 0) { _server.send(400, "application/json", fileApiErrorJson("invalid_request","path missing")); return; }
+    p0 += 8; int p1 = body.indexOf('"', p0); String path = normalizeFilePath(body.substring(p0, p1));
+    if (!isAllowedFilePath(path)) { _server.send(403, "application/json", fileApiErrorJson("forbidden_path","Path outside allowed roots")); return; }
+    bool ok = SD.remove(path);
+    if (!ok) { _server.send(500, "application/json", fileApiErrorJson("io_error","delete failed")); return; }
+    _server.send(200, "application/json", fileApiOkJson("{\"path\":\""+path+"\"}"));
+  });
   _server.on("/api/gps/tracks", [this](){
     if (!_board || !_board->sdMounted()) { _server.send(503, "application/json", "{\"error\":\"sd not mounted\"}"); return; }
     File dir = SD.open("/gps/tracks");

@@ -85,7 +85,7 @@ bool BoardHAL::begin() {
   // Bring up the panel first and force a known-good smoke frame before other services.
   epd_init(&epd_board_v7, &ED047TC1, EPD_LUT_64K);
   g_hl = epd_hl_init(kWaveform);
-  epd_set_rotation(EPD_ROT_LANDSCAPE);
+  epd_set_rotation(EPD_ROT_PORTRAIT);
   epd_set_lcd_pixel_clock_MHz(17);
   const int rotatedW = epd_rotated_display_width();
   const int rotatedH = epd_rotated_display_height();

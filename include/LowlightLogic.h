@@ -6,11 +6,10 @@ struct LowlightState {
 };
 
 inline bool shouldBacklightBeOn(const LowlightState& state) {
-  return !state.enabled || state.backlightOn;
+  return state.backlightOn;
 }
 
 inline void toggleLowlightBacklight(LowlightState& state) {
-  if (!state.enabled) return;
   state.backlightOn = !state.backlightOn;
 }
 

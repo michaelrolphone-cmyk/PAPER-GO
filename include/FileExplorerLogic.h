@@ -8,6 +8,7 @@ struct FileEntryView {
   size_t size = 0;
 };
 
+String fileBaseName(const String& pathOrName);
 void sortFileEntries(std::vector<FileEntryView>& entries);
 String formatFileEntry(const FileEntryView& e);
 String parentPath(const String& currentPath);

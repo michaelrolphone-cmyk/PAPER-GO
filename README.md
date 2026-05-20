@@ -10,6 +10,7 @@ This is a separate handheld e-paper app launcher project. It is not the garden w
 - Persistent status bar with explicit GPS state labels (off/search/2D/3D/stale/no data) and time source label (RTC/GPS/NET/SAVED)
 - Lock screen
 - GPS service and GPS map app scaffold
+- DGPS rover correction packet logic (binary LoRa correction validation, rollover-safe sequence tracking, ENU correction computation, and quality-state evaluation)
 - SD-card cache layout
 - Weather app with cache scaffold
 - URL fetcher app scaffold
@@ -87,10 +88,12 @@ Expected boot log prefixes:
 ## Notes
 
 - Display initialization requires `epdiy.h` at build time; firmware compilation intentionally fails if the panel driver is missing.
+- Display initializes in portrait orientation at boot to match the panel orientation.
 - Touch input is read from GT911 over I2C in `BoardHAL::pollTouch()`, with runtime probe fallback across `0x5D` then `0x14`, explicit controller status clear, and release-state handling before mapping into landscape display coordinates.
 - Touch coordinate mapping uses `BoardConfig::TOUCH_MAX_X`/`TOUCH_MAX_Y` so raw panel coordinates are scaled to screen-space before gesture classification.
 - GPS defaults to a secondary UART but pins must be confirmed against the exact board revision.
 - LoRa defaults are placeholders; wire to the actual SX1262 pins from the LILYGO schematic/examples.
+- Display backlight defaults to OFF at boot and only turns on from explicit user action (tap on lock screen toggles backlight).
 
 
 ## Test commands
@@ -104,6 +107,14 @@ pio test -e T5_E_PAPER_S3_V7_test -f test_display_update_mode_logic
 pio test -e T5_E_PAPER_S3_V7_test -f test_weather_fetch_header_shim
 pio test -e T5_E_PAPER_S3_V7_test -f test_touch_input_logic
 pio test -e T5_E_PAPER_S3_V7_test -f test_games_ui_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_dgps_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_dgps_api_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_openapi_spec
+pio test -e T5_E_PAPER_S3_V7_test -f test_map_config_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_map_api_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_map_prefetch_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_file_api_logic
+pio test -e T5_E_PAPER_S3_V7_test -f test_file_explorer_logic
 ```
 
 ## Launcher configuration
@@ -149,10 +160,19 @@ When Web Server app is running, these HTTP endpoints are available:
   - `cacheActivity` is `true` when map-cache lookups occurred within the last 5 minutes.
 - `GET /api/weather/cache` → returns `/cache/weather/current.json` when cached weather exists.
 - `GET /api/cache/stats` → map cache hit/miss counters.
+- `GET /api/files/list?path=/documents&page=0&pageSize=100` → paginated file listing for allowed roots.
+- `POST /api/files/delete` → deletes a file in allowed roots (JSON body with `path`).
+- File Explorer GUI: tap entry to open, tap top bar area to toggle sort direction, tap bottom area to cycle pages for large directories.
+- `GET /api/maps/status` → offline-map provider/zoom/center tile, coverage state, cache hit/miss counters, and DGPS mode/quality fields.
+- `POST /api/maps/prefetch` → validates `{lat,lon,zoom,radius}`, logs a queued prefetch job, and returns a prefetch job id.
+- `GET /api/maps/cache` → map cache file/size stats for active provider.
+- `POST /api/maps/cache/clear` → recursively clears map cache files for active provider and returns `provider` + `filesRemoved`.
 - `GET /api/radio/scans` → lists files under `/radio/scans`.
 - `GET /api/radio/control` → returns effective radio scanner controls (`wifiEnabled`, `bleEnabled`, `loraEnabled`, `bleScanMs`, `loraScanMs`).
 - `POST /api/radio/control` → updates and persists radio scanner controls to `/config/radio.json`.
 - `GET /api/meshtastic/stats` → Meshtastic message/node file counters.
+- `GET /api/gps/status` → returns raw GPS + active fix, DGPS mode/quality/age, packet counters (including badLength/badHeader/badPayloadSize/badFlags/badQuality), and DGPS radio metrics.
+- `GET /api/gps/dgps` → returns latest DGPS packet sequence/origin metadata plus filtered/predicted ENU correction vectors and correction rates.
 - `GET /api/gps/tracks` → lists saved GPS track files under `/gps/tracks` with file sizes (response names are normalized to file basenames).
 - `POST /api/gps/tracks/clear` → clears GPS track history by deleting files under `/gps/tracks`.
 - `GET /api/power/policy` → effective power policy (`lockTimeoutMs`, `deepSleepTimeoutMs`, `allowDeepSleep`, `deepSleepDurationSec`) and `configPresent`.
@@ -165,6 +185,8 @@ Example command:
 
 ```bash
 curl http://<device-ip>/api/health
+curl http://<device-ip>/api/gps/status
+curl http://<device-ip>/api/gps/dgps
 ```
 
 ## Settings app controls

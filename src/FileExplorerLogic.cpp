@@ -1,6 +1,12 @@
 #include "FileExplorerLogic.h"
 #include <algorithm>
 
+String fileBaseName(const String& pathOrName) {
+  int slash = pathOrName.lastIndexOf('/');
+  if (slash < 0) return pathOrName;
+  return pathOrName.substring(slash + 1);
+}
+
 void sortFileEntries(std::vector<FileEntryView>& entries) {
   std::sort(entries.begin(), entries.end(), [](const FileEntryView& a, const FileEntryView& b){
     if (a.isDir != b.isDir) return a.isDir > b.isDir;

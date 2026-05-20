@@ -120,6 +120,90 @@ paths:
         "503":
           description: SD not mounted
 
+
+
+
+  /api/files/list:
+    get:
+      summary: List files/directories within allowed roots with pagination
+      responses:
+        "200":
+          description: File list payload
+        "403":
+          description: Forbidden path
+        "404":
+          description: Directory not found
+        "503":
+          description: SD not mounted
+
+  /api/files/delete:
+    post:
+      summary: Delete a file within allowed roots
+      responses:
+        "200":
+          description: File delete result
+        "400":
+          description: Invalid request
+        "403":
+          description: Forbidden path
+        "500":
+          description: IO error
+        "503":
+          description: SD not mounted
+  /api/maps/status:
+    get:
+      summary: Offline maps runtime status including coverage and cache counters
+      responses:
+        "200":
+          description: Map status payload including dgpsMode and dgpsQuality
+        "503":
+          description: Map context unavailable
+
+  /api/maps/prefetch:
+    post:
+      summary: Schedule map prefetch task
+      responses:
+        "200":
+          description: Prefetch scheduling result payload
+        "400":
+          description: Invalid prefetch payload
+        "503":
+          description: Cache context unavailable
+
+  /api/maps/cache:
+    get:
+      summary: Map cache statistics for active provider
+      responses:
+        "200":
+          description: Map cache stats payload
+        "503":
+          description: SD not mounted
+
+  /api/maps/cache/clear:
+    post:
+      summary: Recursively clear map cache for active provider and return removed file count
+      responses:
+        "200":
+          description: Map cache clear payload with provider and filesRemoved
+        "503":
+          description: SD not mounted
+  /api/gps/status:
+    get:
+      summary: Live raw and DGPS-aware GPS status snapshot
+      responses:
+        "200":
+          description: GPS status payload with DGPS mode and packet counters
+        "503":
+          description: GPS context unavailable
+
+  /api/gps/dgps:
+    get:
+      summary: Latest DGPS correction packet and predicted correction/rate vectors
+      responses:
+        "200":
+          description: DGPS packet payload including origin, filtered/predicted ENU corrections, and correction rates
+        "503":
+          description: GPS context unavailable
   /api/gps/tracks:
     get:
       summary: List saved GPS track files
