@@ -2419,3 +2419,877 @@ Use this section as the implementation queue. Execute tasks in order, and only m
 - [ ] GATE.5 Unit/integration/API tests pass for modified scope.
 - [ ] GATE.6 OpenAPI, README, and requirements tracker reflect final delivered behavior.
 
+
+---
+
+## 3. GPS service + DGPS rover integration requirements (full implementation)
+
+This section is the authoritative implementation contract for turning the current GPS service and GPS map app into real, field-usable features (not scaffolds/stubs).
+
+### 3.1 Core rule: GPS must always be DGPS-aware
+
+When GPS is enabled, firmware must always poll for DGPS correction packets in parallel.
+
+Required runtime behavior:
+
+1. GPS parsing must run continuously (TinyGPSPlus feed loop).
+2. LoRa DGPS receiver must run continuously while GPS is active.
+3. GPS-only mode and DGPS mode must auto-switch seamlessly based on DGPS packet availability/quality.
+4. User must not need to reboot or manually toggle modes when DGPS appears/disappears.
+5. UI must explicitly show whether output position is RAW GPS or DGPS-corrected.
+
+### 3.2 Required DGPS data path
+
+Implement and wire all of the following paths end-to-end:
+
+1. Radio receive bytes -> `handleReceivedCorrection(...)` validation path.
+2. Valid packet state -> correction state update (`RoverCorrectionState`).
+3. Rover GPS fix -> ENU conversion relative to base origin.
+4. Correction-age prediction -> corrected E/N/U output.
+5. Optional corrected lat/lon back-projection for map marker display.
+6. Quality-state evaluation -> UI and logging labels.
+
+Do not keep DGPS logic disconnected in a helper file only; it must be used by `GPSService` and exposed to app/UI layers through real service fields/APIs.
+
+### 3.3 GPSService required fields and APIs
+
+`GPSService` must expose concrete runtime state for both raw GPS and DGPS outputs.
+
+Minimum required service state:
+
+- `rawFix` (live TinyGPSPlus-derived fix)
+- `correctedFix` (DGPS-corrected fix when available)
+- `usingDgps` (true only when corrected output is currently active)
+- `dgpsQualityState` (`NO_ROVER_FIX`, `NO_BASE`, `BASE_STALE`, `BASE_BAD`, `DGPS_DEGRADED`, `DGPS_GOOD`, `DGPS_BEST`)
+- `dgpsAgeMs`
+- `dgpsLastSeq`
+- `dgpsPacketsReceived`
+- `dgpsPacketsMissed`
+- `dgpsPacketsDuplicate`
+- `dgpsPacketsOutOfOrder`
+- `dgpsPacketsCrcFail`
+- `dgpsRssi`
+- `dgpsSnr`
+
+Minimum required API surface:
+
+- getter for active navigation fix (returns corrected fix when `usingDgps`, else raw fix)
+- getter for raw fix
+- getter for corrected fix validity
+- getter for DGPS mode/quality/age
+- getter for DGPS packet stats
+
+### 3.4 Seamless mode-switch policy
+
+Implement this exact switching policy:
+
+1. If rover GPS fix is invalid/stale -> `NO_ROVER_FIX`, no corrected output.
+2. If rover GPS is valid and no recent base packets -> `NO_BASE`, use raw GPS.
+3. If base packets are stale (>5000 ms) -> `BASE_STALE`, use raw GPS.
+4. If base packets decode but fail quality -> `BASE_BAD`, use raw GPS.
+5. If base quality passes and correction computes:
+   - `DGPS_DEGRADED` for age 2001..5000 ms
+   - `DGPS_GOOD` for age 0..2000 ms and normal quality
+   - `DGPS_BEST` when preferred thresholds are met
+6. In `DGPS_*` states, navigation output must use corrected position.
+7. Transition between raw and corrected modes must not clear track history or crash map rendering.
+
+### 3.5 GPS Map app requirements
+
+`GPS Map` must stop using placeholder-only labels and must render real service outputs.
+
+Required map/app fields on-screen:
+
+1. Mode label: `GPS` or `DGPS` (prominent, always visible).
+2. Quality label from `DgpsQualityState`.
+3. Raw lat/lon and active lat/lon (active == corrected when DGPS enabled).
+4. DGPS age in seconds.
+5. DGPS LoRa RSSI/SNR.
+6. Base sats/HDOP from last packet when available.
+7. Rover sats/HDOP from live fix.
+8. Packet counters: received/missed/duplicate/CRC fail (diagnostic screen acceptable).
+
+Acceptance criteria:
+
+- Walking in/out of DGPS coverage updates mode label automatically.
+- App clearly indicates when it falls back to raw GPS.
+- No fake "DGPS" indicator may appear without active correction.
+
+### 3.6 Logging requirements (must be implemented, not planned)
+
+Implement real CSV logging for DGPS workflows.
+
+Required files:
+
+1. `/logs/corrections_YYYYMMDD.csv`
+2. `/logs/rover_positions_YYYYMMDD.csv`
+3. `/logs/events_YYYYMMDD.csv`
+
+Required correction log columns:
+
+`rover_ms,base_seq,origin_seq,base_utc,age_ms,rssi,snr,flags,base_hdop,base_fix_age_ms,base_sats_used,base_sats_view,raw_e_cm,raw_n_cm,raw_u_cm,filt_e_cm,filt_n_cm,filt_u_cm,rate_e_cm_s,rate_n_cm_s,rate_u_cm_s,origin_lat_e7,origin_lon_e7,origin_alt_cm,origin_samples,filter_samples,crc_ok`
+
+Required rover position log columns:
+
+`rover_ms,rover_utc,quality_state,raw_lat,raw_lon,raw_alt_m,raw_hdop,raw_sats,raw_fix_age_ms,base_origin_lat,base_origin_lon,base_origin_alt_m,live_e_cm,live_n_cm,live_u_cm,corr_e_cm,corr_n_cm,corr_u_cm,corr_lat,corr_lon,corr_alt_m,base_seq,base_age_ms,rssi,snr`
+
+Required event log events:
+
+`BOOT,BASE_ACQUIRED,BASE_LOST,BASE_ORIGIN_CHANGED,ROVER_ORIGIN_LOCK,ROVER_ORIGIN_CLEAR,LOG_START,LOG_STOP,GPS_FIX_GAINED,GPS_FIX_LOST`
+
+### 3.7 API and web endpoint requirements for GPS/DGPS status
+
+If web APIs are enabled in firmware, these endpoints are required and must be real (not fixed JSON):
+
+1. `GET /api/gps/status`
+   - raw fix validity + fields
+   - active fix fields
+   - `usingDgps`
+   - DGPS quality state
+   - DGPS age and radio metrics
+   - packet counters
+2. `GET /api/gps/dgps`
+   - last correction packet header/quality subset
+   - origin coordinates
+   - ENU correction vector and predicted vector
+
+If either endpoint is added/changed, update `docs/openapi.yaml` in the same change and add/update API unit tests to validate response shapes and required fields.
+
+### 3.8 Failure handling requirements
+
+Required behavior under failures:
+
+1. CRC failure increments counters and must not update active correction.
+2. Bad header/version/type must be rejected and counted.
+3. Quality-failed packets may update recent-base diagnostics but must not drive corrected navigation output.
+4. Rover GPS stale invalidates corrected output immediately.
+5. Base origin change clears rover-origin lock and emits `BASE_ORIGIN_CHANGED` event.
+
+### 3.9 Required acceptance checks
+
+Implementation is complete only when all checks pass:
+
+1. Device can run in raw GPS mode with no base present.
+2. Device auto-switches to DGPS when valid corrections arrive.
+3. Device auto-falls back to raw GPS when corrections are stale/invalid.
+4. GPS map visibly indicates mode and quality transitions in real time.
+5. CSV logs contain real runtime values and rotate by date.
+6. Web API endpoints report live GPS/DGPS state (if web server enabled).
+7. Unit tests cover:
+   - packet validation and CRC
+   - sequence/rollover/missed/duplicate/out-of-order
+   - corrected ENU computation
+   - mode switching logic
+   - quality-state transitions
+   - API response fields (if API endpoints exist)
+
+
+---
+
+## 4. Offline maps full implementation specification (GPS Map feature contract)
+
+This section defines the complete requirements to realize Offline Maps as a production feature.
+
+### 4.1 Scope and goals
+
+Offline Maps must provide usable field navigation when network is unavailable.
+
+Required outcomes:
+
+1. GPS Map renders real local map imagery or vector-derived raster tiles from SD cache.
+2. Current position marker updates in real time from active fix (`DGPS` when active, raw GPS otherwise).
+3. Map remains usable without Wi-Fi for previously cached regions.
+4. UI clearly indicates cache coverage quality and stale/missing map data.
+
+### 4.2 Supported map source and storage model
+
+Firmware must support SD-backed tile cache under:
+
+- `/cache/maps/<provider>/<z>/<x>/<y>.tile`
+
+Provider requirements:
+
+1. `default` provider must be supported.
+2. Provider identifier must be configurable from `/config/maps.json`.
+3. Unknown providers must fallback to `default` and log warning.
+
+Tile file requirements:
+
+1. `.tile` files must be real renderable payloads (PNG/JPEG/raw-gray agreed format), not placeholders.
+2. If compressed image tiles are used, decode path must be implemented on-device.
+3. Corrupt tile reads must be detected and counted as cache miss.
+
+### 4.3 Required `/config/maps.json` schema
+
+`/config/maps.json` must support:
+
+- `provider` (string)
+- `zoom` (integer default zoom)
+- `minZoom` (integer)
+- `maxZoom` (integer)
+- `prefetchRadius` (integer tile radius)
+- `offlineOnly` (bool)
+- `tileSizePx` (integer, default 256)
+
+Validation rules:
+
+1. `minZoom <= zoom <= maxZoom`
+2. zoom range must be clamped to implementation-supported levels.
+3. Invalid config must fallback to safe defaults and emit config error log.
+
+### 4.4 Coordinate and tile math requirements
+
+Implement deterministic conversion pipeline:
+
+1. WGS84 lat/lon -> Slippy-map tile x/y at zoom.
+2. Active viewport center tile from active fix.
+3. Neighbor tiles sampled by configured radius.
+4. Sub-tile pixel offset for smooth marker placement.
+
+Accuracy requirements:
+
+1. Marker must remain spatially consistent while panning due to movement.
+2. Crossing tile boundaries must not cause marker jumps > 1 tile error.
+
+### 4.5 Rendering requirements (e-paper aware)
+
+Required rendering stack:
+
+1. Assemble viewport from multiple cached tiles around center.
+2. Draw current-position marker and heading arrow (when heading reliable).
+3. Draw DGPS status overlay (Mode/Quality/Age) without obscuring marker.
+4. Draw scale indicator and north reference.
+
+E-paper refresh policy:
+
+1. Partial update for marker/overlay changes (target 1 Hz) where reliable.
+2. Full refresh every configurable interval (default 10s) to control ghosting.
+3. Force full refresh when tile set changes significantly.
+
+### 4.6 Cache coverage and fallback behavior
+
+Coverage states must be computed from requested tile set:
+
+- `FULL` (all required tiles present)
+- `PARTIAL` (some present)
+- `MISS` (none present)
+
+Required behavior:
+
+1. `FULL`: normal render.
+2. `PARTIAL`: render available tiles + hatched/no-data background for misses.
+3. `MISS`: render clear offline-missing panel with nearest cached-area hint if available.
+
+Do not draw fake map imagery when no tile data exists.
+
+### 4.7 Online fetch and prefetch rules (when Wi-Fi available)
+
+If `offlineOnly=false` and Wi-Fi connected:
+
+1. Missing visible tiles may be fetched and written to cache.
+2. Fetch queue must be bounded and non-blocking for UI thread.
+3. Prefetch ring around current tile must honor `prefetchRadius`.
+4. HTTP failures must not freeze map rendering.
+
+If `offlineOnly=true`, no network tile fetch may be attempted.
+
+### 4.8 Required map APIs
+
+If web server is enabled, these endpoints are required for map feature realization:
+
+1. `GET /api/maps/status`
+   - provider, zoom, center tile
+   - coverage state
+   - tile requests/hits/misses/corrupt counters
+   - offlineOnly mode
+2. `POST /api/maps/prefetch`
+   - accepts center lat/lon, zoom, radius
+   - schedules prefetch job and returns job id/status
+3. `GET /api/maps/cache`
+   - reports cache size, file count, oldest/newest tile timestamps
+4. `POST /api/maps/cache/clear`
+   - clears provider cache (with optional provider filter)
+
+Any map API changes require same-change updates to `docs/openapi.yaml` and unit tests.
+
+### 4.9 Logging requirements for offline maps
+
+Required log file:
+
+- `/logs/map_cache_YYYYMMDD.csv`
+
+Columns:
+
+`ms,provider,z,x,y,event,source,result,lat,lon,dgps_mode,quality`
+
+Where:
+
+- `event`: lookup|fetch|decode|render
+- `source`: cache|network
+- `result`: hit|miss|corrupt|ok|error
+
+### 4.10 GPS/DGPS integration requirements for map mode
+
+Map center and marker must always use GPSService active fix:
+
+1. If DGPS available/valid -> active fix is corrected fix.
+2. Else active fix is raw fix.
+3. Overlay must show `GPS` or `DGPS` explicitly.
+4. Quality state label must match `DgpsQualityState`.
+
+No duplicate/parallel ad-hoc GPS source may be used by map renderer.
+
+### 4.11 Error handling and resilience
+
+Required safeguards:
+
+1. Missing SD card -> map app must show storage error state, not crash.
+2. Corrupt tile decode -> drop tile, increment corrupt counter, continue rendering.
+3. Invalid map config -> fallback defaults + warning log.
+4. Memory pressure while composing viewport -> degrade tile radius first, then show fallback panel.
+
+### 4.12 Acceptance criteria (feature complete)
+
+Offline maps are complete only when:
+
+1. With Wi-Fi disabled, previously cached region renders correctly while moving.
+2. With DGPS corrections present, marker follows DGPS-corrected active fix and overlay shows `DGPS`.
+3. Coverage transitions FULL/PARTIAL/MISS are visible and accurate.
+4. Tile corruption and cache misses are logged and exposed in map status API.
+5. App remains responsive during fetch/prefetch operations.
+6. OpenAPI spec documents all implemented map endpoints.
+7. Unit tests cover:
+   - tile math conversion
+   - cache coverage classification
+   - config validation/fallback
+   - API response fields for map endpoints
+   - DGPS mode label usage in map status payload
+
+### 4.13 Required implementation tasks
+
+1. Implement map config parser/validator for `/config/maps.json`.
+2. Implement tile decode/render path for `.tile` payload format used by firmware.
+3. Implement viewport tile compositor + marker overlay.
+4. Implement cache/fetch queue manager with bounded work budget per loop.
+5. Implement map APIs and OpenAPI spec updates.
+6. Implement map cache CSV logging.
+7. Add/expand unit tests for all above modules.
+
+
+---
+
+## 5. Full product feature realization spec (non-scaffold completion contract)
+
+This section defines completion specs for all major shipped features so the firmware can be delivered as a fully working product rather than scaffolding.
+
+### 5.1 Springboard launcher (production spec)
+
+Required behavior:
+
+1. Load app order from `/config/apps.json` with validation and deterministic fallback.
+2. Render paged app grid with visible selection focus and page indicators.
+3. Support tap-to-open, swipe page navigation, and long-press app options.
+4. Persist user app order edits back to `/config/apps.json`.
+5. Show app health badges (e.g., unread messages, config errors) when available.
+
+Acceptance:
+
+- Reordering survives reboot.
+- Invalid app ids are ignored without crash and logged.
+
+### 5.2 Lock screen (production spec)
+
+Required behavior:
+
+1. Render UTC/local time, date, battery/charging, GPS/DGPS mode, and connectivity indicators.
+2. Show real map preview state from offline map cache logic.
+3. Auto-enter after lock timeout and recover to prior app on unlock.
+4. Support unlock by configured gesture/button.
+
+Acceptance:
+
+- Lock policy follows `/config/power.json`.
+- No stale/fake status labels shown when backing services unavailable.
+
+### 5.3 GPS + DGPS service (production spec)
+
+Required behavior:
+
+1. Continuous GPS parse loop and DGPS polling loop.
+2. Automatic mode selection between raw GPS and DGPS corrected output.
+3. Expose active fix, raw fix, DGPS quality, age, radio, and packet diagnostics.
+4. Persist GPS track logs and DGPS correction logs with required schemas.
+
+Acceptance:
+
+- DGPS mode transitions are visible and deterministic.
+- Invalid packets never update active correction output.
+
+### 5.4 Offline maps app (production spec)
+
+Required behavior:
+
+1. Render cache-backed tile viewport and marker from active fix.
+2. Show FULL/PARTIAL/MISS coverage state and tile diagnostics.
+3. Support provider/zoom config from `/config/maps.json`.
+4. Support cache inspection and clear via APIs.
+
+Acceptance:
+
+- Moving across cached region updates viewport consistently.
+- Missing tiles produce explicit no-data visuals, not fake map imagery.
+
+### 5.5 Radio scanner (production spec)
+
+Required behavior:
+
+1. Perform real Wi-Fi/BLE/LoRa scans from radio config.
+2. Render sortable scan list with RSSI/protocol/age fields.
+3. Persist scans to `/radio/scans/scan-<ms>.log` with GPS coordinates when available.
+4. Expose radio control/status via API with validation.
+
+Acceptance:
+
+- Scan toggles in `/config/radio.json` directly affect runtime scan behavior.
+
+### 5.6 Meshtastic/LoRa messaging boundary (production spec)
+
+Required behavior:
+
+1. Persist nodes/messages/config under `/meshtastic/*` paths.
+2. Provide message list UI with unread/read state and timestamps.
+3. Expose storage stats and unread count to status API.
+4. Implement clear scoped behavior when full Meshtastic interoperability is not enabled.
+
+Acceptance:
+
+- No placeholder-only message screen in release mode.
+
+### 5.7 Weather feature (production spec)
+
+Required behavior:
+
+1. Read weather provider config from `/config/weather.json`.
+2. Fetch weather by live GPS location when Wi-Fi is available.
+3. Cache parsed response in `/cache/weather/current.json`.
+4. Render fresh/stale status and last update timestamp.
+
+Acceptance:
+
+- Network failures fall back to cache with explicit stale labeling.
+
+### 5.8 URL fetcher (production spec)
+
+Required behavior:
+
+1. Read template/config from `/config/url_fetcher.json`.
+2. Resolve placeholders (`{lat}`, `{lon}`, optional others) safely.
+3. Fetch and cache response under `/cache/http`.
+4. Render summarized body with size/error metadata.
+
+Acceptance:
+
+- Invalid templates are rejected with explicit user-facing error.
+
+### 5.9 Markdown/document reader (production spec)
+
+Required behavior:
+
+1. Browse markdown files from `/documents/markdown`.
+2. Render headings, lists, links text, code fences, and tables (bounded).
+3. Support pagination/scroll and file reload.
+4. Protect against oversized file memory exhaustion with graceful truncation.
+
+Acceptance:
+
+- Reader remains responsive on large docs and never crashes on malformed markdown.
+
+### 5.10 File explorer (production spec)
+
+Required behavior:
+
+1. Browse SD filesystem within allowed roots.
+2. Sort by name/date/size and show metadata.
+3. Open supported file types via associated apps.
+4. Prevent unsafe operations outside allowed roots.
+
+Acceptance:
+
+- Explorer actions never escape sandboxed SD roots.
+
+### 5.11 Games suite (production spec)
+
+Required behavior:
+
+1. Ship playable Chess, Go, Tic-Tac-Toe, Minesweeper UIs.
+2. Enforce core rules and illegal-move prevention.
+3. Support save/resume where defined.
+4. Render stable touch interaction and turn indicators.
+
+Acceptance:
+
+- Games are playable end-to-end without placeholder notices.
+
+### 5.12 Settings app (production spec)
+
+Required behavior:
+
+1. Provide editable sections for Wi-Fi, GPS/DGPS, LoRa/radio, maps, power, cache, web server.
+2. Persist validated config to `/config/*.json`.
+3. Show applied vs pending values and commit result.
+4. Expose reset-to-default actions per section.
+
+Acceptance:
+
+- Settings edits take effect without reboot when subsystem supports live reload.
+
+### 5.13 Web server/API feature parity (production spec)
+
+Required behavior:
+
+1. Serve static files from `/webroot` with content-type handling.
+2. Serve all documented `/api/*` endpoints with live runtime data.
+3. Keep `docs/openapi.yaml` authoritative and synchronized.
+4. Return structured error payloads for unavailable contexts.
+
+Acceptance:
+
+- Every path in OpenAPI has automated unit coverage for presence and key response fields.
+
+### 5.14 Data persistence and logging (production spec)
+
+Required behavior:
+
+1. Create and maintain required SD layout on boot.
+2. Write append-safe logs for GPS, DGPS, radio, map cache, boot/runtime events.
+3. Rotate logs by date and bound file growth.
+4. Recover gracefully from SD remove/reinsert conditions.
+
+Acceptance:
+
+- No silent data loss when SD is present and writable.
+
+### 5.15 Release quality gates (must pass together)
+
+1. No critical feature screen shows scaffold/placeholder/not-implemented messaging in release mode.
+2. GPS Map, Radio, Weather, URL Fetcher, File Explorer, Settings, and Games are all user-operable end-to-end.
+3. DGPS and offline map APIs return live data matching docs.
+4. OpenAPI + README + requirements are in sync with shipped behavior.
+5. Unit tests cover changed logic and API/spec contracts for every merged feature change.
+
+
+---
+
+## 6. Completion integrity policy (checked items require full working implementation)
+
+This section is mandatory and supersedes any implied "partial completion" interpretation in checklist sections.
+
+### 6.1 Definition of complete (strict)
+
+A requirement/checklist item may be marked complete (`[x]`) only when all of the following are true:
+
+1. Real working code exists in production paths (not test-only, not mock-only).
+2. Feature is reachable through real UI/API flows on device/runtime.
+3. Failure paths are handled with explicit user-visible or API-visible error behavior.
+4. Persistence/logging required by the requirement is implemented.
+5. Required tests exist and pass for changed behavior.
+6. Docs/specs (README/OpenAPI/requirements) match shipped behavior.
+
+If any condition is unmet, item must remain `[ ]`.
+
+### 6.2 Forbidden completion patterns
+
+The following must never justify marking an item `[x]`:
+
+1. Placeholder text replacing real feature behavior.
+2. Stub implementation that only prints logs/returns constants.
+3. Mocked UI showing fake data without connected service logic.
+4. API endpoint that returns fixed/dummy payload unrelated to runtime state.
+5. TODO comments without implementation.
+6. Test-only implementation not wired into main runtime.
+
+### 6.3 Retroactive checklist correctness rule
+
+For every checklist section (including previously checked items):
+
+1. Each `[x]` item must have concrete specification details in this file.
+2. Each `[x]` item must map to concrete source files implementing behavior.
+3. If implementation is partial/scaffolded, item must be reverted to `[ ]` until complete.
+
+### 6.4 Required spec detail minimum for checked items
+
+Any checked item must document at minimum:
+
+1. Runtime entry points (UI route/API endpoint/service loop).
+2. Input/config sources (files, payloads, touch/button actions).
+3. Output/side effects (screen changes, logs, persisted files, API fields).
+4. Error handling behavior.
+5. Verification method (tests and/or on-device acceptance checks).
+
+### 6.5 Merge/review gate
+
+Before merging a task that updates requirements checkboxes:
+
+1. Reviewer must verify no `[x]` item depends on stub/mock/placeholder-only code.
+2. Reviewer must verify relevant checklist item includes spec detail minimum (Section 6.4).
+3. Reviewer must verify tests exist for changed behavior and docs match code.
+
+If any gate fails, checklist changes must be rejected.
+
+### 6.6 Priority remediation rule for existing checked items
+
+If existing checked items are found to be incomplete:
+
+1. Add missing spec details immediately.
+2. Re-open items to `[ ]` when code is not fully implemented.
+3. Track remediation tasks until item can be honestly re-checked.
+
+No item may remain checked while known to be scaffold-only.
+
+
+---
+
+## 7. Requirements execution framework (how to complete requirements end-to-end)
+
+This section defines the required workflow for turning each requirement into delivered code.
+
+### 7.1 Requirement lifecycle states
+
+Each requirement item must explicitly track one of these states:
+
+1. `UNSTARTED`
+2. `IN_PROGRESS`
+3. `BLOCKED` (with blocker reason and owner)
+4. `VERIFYING`
+5. `COMPLETE`
+
+Rules:
+
+- `COMPLETE` is allowed only when Section 6 completion integrity conditions are satisfied.
+- `BLOCKED` items must include concrete blocker details and next action.
+
+### 7.2 Required implementation packet per feature
+
+For every feature requirement, maintain an implementation packet containing:
+
+1. **Spec slice**: exact behavior contract copied from requirements section.
+2. **Code map**: source files/modules that implement behavior.
+3. **Runtime path**: how user reaches feature (UI route/API endpoint/background loop).
+4. **Persistence path**: files/config/logs read/written.
+5. **Failure behavior**: explicit expected user/API response for failures.
+6. **Verification plan**: tests + on-device acceptance checks.
+
+A feature cannot move to `VERIFYING` without a complete implementation packet.
+
+### 7.3 Test and API spec synchronization policy
+
+When changing behavior:
+
+1. Add/update unit tests before marking complete.
+2. If APIs change, update `docs/openapi.yaml` in the same change.
+3. Add/update tests verifying changed API paths and key response fields.
+4. Update README API/CLI command examples in same change.
+
+### 7.4 On-device validation minimum for hardware-bound features
+
+For hardware-coupled features (display/touch/GPS/radio/power/storage):
+
+1. Validate startup path on real device.
+2. Validate one nominal scenario and one failure scenario.
+3. Validate no crash/reset across 10+ minutes of operation under feature load.
+
+Required recorded evidence in notes:
+
+- firmware build identifier,
+- scenario steps,
+- observed result,
+- known limitations.
+
+### 7.5 Regression lock policy
+
+After a requirement reaches `COMPLETE`:
+
+1. Add/retain regression tests for key behavior contracts.
+2. Any future bug fix touching feature must include regression test updates.
+3. If regression is discovered, item re-enters `IN_PROGRESS` until fixed and re-verified.
+
+### 7.6 Completion checklist template (must be attached per completed item)
+
+- [ ] Requirement behavior implemented in production runtime path.
+- [ ] No placeholder/stub/mock behavior remains.
+- [ ] Error handling paths implemented and observable.
+- [ ] Persistence/logging requirements implemented.
+- [ ] Unit tests added/updated and passing.
+- [ ] OpenAPI updated (if API touched).
+- [ ] README API/CLI docs updated.
+- [ ] On-device acceptance checks recorded.
+
+### 7.7 Priority execution order for remaining work
+
+To realize a fully working product, execute remaining requirements in this order:
+
+1. **Platform integrity**: display, touch, storage, power, boot/runtime stability.
+2. **Navigation core**: GPS/DGPS correctness, offline maps rendering, map cache/fetch.
+3. **Operational tools**: radio scanner, web APIs, logging/diagnostics.
+4. **User workflows**: settings editor, file/document flows, weather/url integrations.
+5. **App polish**: launcher interactions, lock screen UX, games completeness.
+6. **Release hardening**: performance, memory, long-run stability, docs parity.
+
+### 7.8 Non-completion disclosure rule
+
+If any requirement is partially implemented, release notes and requirements status must explicitly state:
+
+1. what is implemented,
+2. what is missing,
+3. what blocks completion,
+4. what test coverage exists today.
+
+Do not represent partially implemented features as complete.
+
+
+---
+
+## 8. File management feature requirements (full implementation spec)
+
+This section defines complete requirements for file management across File Explorer, document apps, logs, and API-accessible storage operations.
+
+### 8.1 Scope
+
+File management includes:
+
+1. Browsing and inspecting files/directories on SD card.
+2. Controlled create/rename/move/delete operations within allowed roots.
+3. Opening files in associated apps.
+4. Exposing safe file-management APIs for remote tooling.
+5. Logging file operations for audit/debugging.
+
+### 8.2 Allowed roots and sandbox boundaries
+
+All file operations must be restricted to approved roots:
+
+- `/apps`
+- `/cache`
+- `/documents`
+- `/games`
+- `/gps`
+- `/meshtastic`
+- `/radio`
+- `/config`
+- `/logs`
+- `/webroot`
+
+Rules:
+
+1. Path normalization must reject traversal attempts (`..`, duplicated separators, hidden parent hops).
+2. Absolute paths outside approved roots must be rejected.
+3. API and UI must return explicit permission errors for blocked paths.
+
+### 8.3 File Explorer app requirements
+
+Required behavior:
+
+1. Directory listing with file type, size, and last-modified timestamp.
+2. Sorting modes: name asc/desc, size asc/desc, modified asc/desc.
+3. Filter modes: all/files/dirs and extension filter.
+4. Operations menu per entry: open, rename, delete, move/copy (where supported).
+5. Breadcrumb navigation and parent traversal within sandbox roots.
+6. Create directory and create text file actions.
+
+Acceptance:
+
+- Explorer never freezes on large directories; paginate or chunk listing.
+- Operations provide success/failure feedback with reason.
+
+### 8.4 File association requirements
+
+File-open routing must map by extension:
+
+- `.md` -> Markdown Reader
+- `.txt`/`.log`/`.csv` -> text viewer mode
+- map cache tile extensions -> map diagnostic preview mode
+- unknown -> metadata-only inspector with hex/text preview limits
+
+Rules:
+
+1. Unsupported file types must still be inspectable (metadata + bounded preview).
+2. Opening large files must not exhaust memory.
+
+### 8.5 Safe mutation requirements
+
+For rename/move/copy/delete:
+
+1. Validate source and destination paths in sandbox.
+2. Prevent overwrite unless explicit replace flag is provided.
+3. For directory delete, support recursive delete with confirmation.
+4. For copy/move, support file-size guard and incremental progress state.
+5. Handle partial failure with rollback or explicit partial-result report.
+
+### 8.6 File management web APIs
+
+If web server is enabled, required endpoints:
+
+1. `GET /api/files/list?path=<...>&sort=<...>&order=<...>&filter=<...>`
+2. `GET /api/files/meta?path=<...>`
+3. `POST /api/files/mkdir`
+4. `POST /api/files/write` (bounded text payloads)
+5. `POST /api/files/rename`
+6. `POST /api/files/move`
+7. `POST /api/files/copy`
+8. `POST /api/files/delete`
+
+Response requirements:
+
+- consistent `{ ok, error?, data? }` envelope
+- explicit error codes: `invalid_path`, `forbidden_path`, `not_found`, `already_exists`, `io_error`, `payload_too_large`
+
+Any added/changed endpoints require same-change updates to `docs/openapi.yaml` and API tests.
+
+### 8.7 Logging and audit requirements
+
+Required file:
+
+- `/logs/file_ops_YYYYMMDD.csv`
+
+Columns:
+
+`ms,op,path,dst_path,result,error_code,size_before,size_after`
+
+Operations logged:
+
+`list,meta,mkdir,write,rename,move,copy,delete,open`
+
+### 8.8 Performance and reliability requirements
+
+1. Large directory listing (>1000 entries) must be chunked/paginated.
+2. File preview reads must be bounded by configurable max bytes.
+3. Long operations (recursive delete/copy) must yield to main loop between chunks.
+4. SD transient failures must produce recoverable errors, not crashes.
+
+### 8.9 Security and privacy requirements
+
+1. Deny access to secret-bearing files when policy requires redaction (e.g., credential files in API list views).
+2. Redact sensitive values when returning config file previews (`wifi password`, tokens).
+3. Require explicit confirmation token for destructive recursive delete through API.
+
+### 8.10 Acceptance criteria
+
+File management is complete only when:
+
+1. Explorer supports browse/sort/filter/open/create/rename/delete/move/copy inside sandbox roots.
+2. Web file APIs enforce sandbox rules and return structured errors.
+3. Recursive operations are safe and non-blocking.
+4. File operation logs are written with required schema.
+5. OpenAPI documents all shipped file APIs.
+6. Unit tests cover path normalization/sandbox enforcement and operation result handling.
+
+### 8.11 Required tests
+
+Minimum unit/integration tests:
+
+1. path normalization and traversal rejection tests.
+2. allowed-root enforcement tests.
+3. rename/move/copy/delete success + failure cases.
+4. recursive delete behavior and partial-failure reporting tests.
+5. API payload/response shape tests for file endpoints.
+6. OpenAPI spec presence tests for all file API paths.
+

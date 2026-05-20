@@ -20,6 +20,7 @@
 #include "SettingsLogic.h"
 #include "WifiConfigLogic.h"
 #include "PowerManagementLogic.h"
+#include "DgpsApiLogic.h"
 
 void SimpleListApp::titleBar(SystemServices& s, const String& t) {
   s.board->fillRect(0, BoardConfig::STATUS_BAR_H, BoardConfig::SCREEN_W, 40, 14);
@@ -128,7 +129,8 @@ bool SpringboardApp::handleHomeButton(SystemServices& s) {
 
 void LockScreenApp::render(SystemServices& s) {
   s.board->clear(15);
-  GpsFix f=s.gps->fix();
+  GpsFix f=s.gps->activeFix();
+  GpsFix raw=s.gps->fix();
   BatteryStatus b = s.board->battery();
   s.board->drawText(40,70,"LOCK",0,2);
 
@@ -163,40 +165,57 @@ void LockScreenApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
 void GpsMapApp::update(SystemServices& s, uint32_t now) { s.gps->update(); }
 void GpsMapApp::render(SystemServices& s) {
   titleBar(s, "GPS Map");
-  GpsFix f=s.gps->fix();
+  GpsFix f=s.gps->activeFix();
+  GpsFix raw=s.gps->fix();
   s.board->drawRect(20,95,620,390,0);
-  s.board->drawText(220,280,"MAP PREVIEW UNAVAILABLE",7,2);
-  s.board->drawText(220,312,mapAppNoticeText(),5,1);
-  s.board->drawLine(330,290,370,290,0); s.board->drawLine(350,270,350,310,0);
+  const int gridX = 40, gridY = 120, cellW = 180, cellH = 110;
+  MapTileCoord center = mapTileFromFix(f.valid ? f : raw, 12);
+  uint16_t totalTiles = 0;
+  uint16_t cachedTiles = 0;
+  for (int gy = 0; gy < 3; ++gy) {
+    for (int gx = 0; gx < 3; ++gx) {
+      int dx = gx - 1;
+      int dy = gy - 1;
+      int x0 = gridX + gx * (cellW + 8);
+      int y0 = gridY + gy * (cellH + 8);
+      int32_t tx = center.x + dx;
+      int32_t ty = center.y + dy;
+      bool tileValid = center.valid && tx >= 0 && ty >= 0;
+      bool hit = false;
+      if (tileValid && s.cache) {
+        ++totalTiles;
+        hit = s.cache->hasFile(s.cache->mapTilePath("default", center.zoom, (uint32_t)tx, (uint32_t)ty));
+        if (hit) ++cachedTiles;
+        s.cache->recordMapCacheLookup(hit);
+      }
+      s.board->fillRect(x0, y0, cellW, cellH, hit ? 12 : 14);
+      s.board->drawRect(x0, y0, cellW, cellH, 0);
+      s.board->drawText(x0 + 8, y0 + 8, tileValid ? mapTileLabel(MapTileCoord{true, center.zoom, tx, ty}) : String("n/a"), 0, 1);
+      s.board->drawText(x0 + 8, y0 + 34, hit ? "cached" : "missing", hit ? 0 : 5, 1);
+      if (dx == 0 && dy == 0) {
+        s.board->drawLine(x0 + cellW / 2 - 10, y0 + cellH / 2, x0 + cellW / 2 + 10, y0 + cellH / 2, 0);
+        s.board->drawLine(x0 + cellW / 2, y0 + cellH / 2 - 10, x0 + cellW / 2, y0 + cellH / 2 + 10, 0);
+      }
+    }
+  }
   int x=670, y=105;
+  s.board->drawText(x,y,"Mode",0,2); y+=35;
+  s.board->drawText(x,y,s.gps->usingDgps()?"DGPS":"GPS",s.gps->usingDgps()?0:5,1); y+=25;
+  s.board->drawText(x,y,"Quality: "+dgpsQualityStateLabel(s.gps->dgpsQuality()),0,1); y+=25;
+  s.board->drawText(x,y,"Age: "+String(s.gps->dgpsAgeMs()/1000.0,1)+"s",0,1); y+=25;
   s.board->drawText(x,y,"Fix",0,2); y+=35;
   s.board->drawText(x,y,f.valid?"valid":"no fix",f.valid?0:5,1); y+=25;
   GpsFix bf = s.gps->bestFit();
-  s.board->drawText(x,y,"Lat: "+String(f.lat,6),0,1); y+=22;
-  s.board->drawText(x,y,"Lon: "+String(f.lon,6),0,1); y+=22;
+  s.board->drawText(x,y,"Raw: "+String(raw.lat,6)+","+String(raw.lon,6),0,1); y+=22;
+  s.board->drawText(x,y,"Active: "+String(f.lat,6)+","+String(f.lon,6),0,1); y+=22;
   s.board->drawText(x,y,"BestFit: "+(bf.valid?String(bf.lat,5)+","+String(bf.lon,5):String("n/a")),0,1); y+=22;
   s.board->drawText(x,y,"Sats: "+String(f.sats),0,1); y+=22;
   s.board->drawText(x,y,"HDOP: "+String(f.hdop,1),0,1); y+=22;
   if(s.gps->headingReliable()) s.board->drawText(x,y,"Heading: "+String(s.gps->computedHeadingDeg(),0),0,1);
   else s.board->drawText(x,y,"Heading: moving only",5,1);
   y+=35;
-  MapTileCoord center = mapTileFromFix(f.valid ? f : bf, 12);
+  center = mapTileFromFix(f.valid ? f : bf, 12);
   s.board->drawText(x,y,"Tile: " + mapTileLabel(center),0,1); y+=22;
-  uint16_t totalTiles = 0;
-  uint16_t cachedTiles = 0;
-  if (s.cache && center.valid) {
-    for (int dy=-1; dy<=1; ++dy) {
-      for (int dx=-1; dx<=1; ++dx) {
-        int32_t tx = center.x + dx;
-        int32_t ty = center.y + dy;
-        if (tx < 0 || ty < 0) continue;
-        ++totalTiles;
-        bool hit = s.cache->hasFile(s.cache->mapTilePath("default", center.zoom, (uint32_t)tx, (uint32_t)ty));
-        if (hit) ++cachedTiles;
-        s.cache->recordMapCacheLookup(hit);
-      }
-    }
-  }
   CacheCoverageState coverage = deriveCacheCoverageState(totalTiles, cachedTiles);
   s.board->drawText(x,y,"Tiles: "+String(cacheCoverageLabel(coverage))+" ("+String(cachedTiles)+"/"+String(totalTiles)+")",0,1); y+=22;
   if (s.cache) s.board->drawText(x,y,"Cache H/M: "+String(s.cache->mapCacheHitCount())+"/"+String(s.cache->mapCacheMissCount()),0,1);
