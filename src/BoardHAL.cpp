@@ -19,6 +19,7 @@
 namespace {
 constexpr const EpdWaveform* kWaveform = EPD_BUILTIN_WAVEFORM;
 EpdiyHighlevelState g_hl;
+TwoWire g_boardI2C(1);
 bool g_displayReady = false;
 bool g_bootSplashDrawn = false;
 int g_fbWidth = BoardConfig::SCREEN_W;
@@ -92,16 +93,21 @@ bool BoardHAL::begin() {
 
   // Bring I2C up after EPD init because the display stack configures PMIC/GPIO over I2C.
   // Initializing Wire first can contend for the bus and trigger "common: acquire bus failed".
-  Wire.begin(BoardConfig::I2C_SDA, BoardConfig::I2C_SCL);
+  Serial.println("I2C app bus: starting on controller 1");
+  if (!g_boardI2C.begin(BoardConfig::I2C_SDA, BoardConfig::I2C_SCL, 400000)) {
+    Serial.println("I2C app bus: begin failed");
+  } else {
+    Serial.println("I2C app bus: begin ok");
+  }
   auto probeI2cAddress = [](uint8_t addr, void* ctx)->bool {
     TwoWire* wire = static_cast<TwoWire*>(ctx);
     wire->beginTransmission(addr);
     return wire->endTransmission() == 0;
   };
-  _touchAddr = probeGt911Address(probeI2cAddress, &Wire);
+  _touchAddr = probeGt911Address(probeI2cAddress, &g_boardI2C);
 
-  Wire.beginTransmission(BoardConfig::RTC_ADDR);
-  _rtcAvailable = isRtcI2cProbeSuccess(static_cast<uint8_t>(Wire.endTransmission()));
+  g_boardI2C.beginTransmission(BoardConfig::RTC_ADDR);
+  _rtcAvailable = isRtcI2cProbeSuccess(static_cast<uint8_t>(g_boardI2C.endTransmission()));
   Serial.printf("RTC probe 0x%02X: %s\n", BoardConfig::RTC_ADDR, _rtcAvailable ? "ok" : "failed");
   if (_touchAddr == 0) {
     Serial.println("GT911 probe failed at 0x14 and 0x5D");
@@ -184,11 +190,11 @@ TouchEvent BoardHAL::pollTouch() {
   uint8_t status = 0;
   bool hadSample = false;
   if (_touchAddr == 0) return _touchClassifier.update(false, _touchX, _touchY, millis());
-  Wire.beginTransmission(_touchAddr);
-  Wire.write(static_cast<uint8_t>((kGt911StatusReg >> 8) & 0xFF));
-  Wire.write(static_cast<uint8_t>(kGt911StatusReg & 0xFF));
-  if (Wire.endTransmission(false) == 0 && Wire.requestFrom(static_cast<int>(_touchAddr), 1) == 1) {
-    status = Wire.read();
+  g_boardI2C.beginTransmission(_touchAddr);
+  g_boardI2C.write(static_cast<uint8_t>((kGt911StatusReg >> 8) & 0xFF));
+  g_boardI2C.write(static_cast<uint8_t>(kGt911StatusReg & 0xFF));
+  if (g_boardI2C.endTransmission(false) == 0 && g_boardI2C.requestFrom(static_cast<int>(_touchAddr), 1) == 1) {
+    status = g_boardI2C.read();
     uint8_t count = status & 0x0F;
     if (status & 0x80) {
       hadSample = true;
@@ -197,11 +203,11 @@ TouchEvent BoardHAL::pollTouch() {
       uint8_t payload[kMaxRead];
       payload[0] = status;
       if (count > 0) {
-        Wire.beginTransmission(_touchAddr);
-        Wire.write(static_cast<uint8_t>((kGt911Point1Reg >> 8) & 0xFF));
-        Wire.write(static_cast<uint8_t>(kGt911Point1Reg & 0xFF));
-        if (Wire.endTransmission(false) == 0 && Wire.requestFrom(static_cast<int>(_touchAddr), static_cast<int>(toRead - 1)) == static_cast<int>(toRead - 1)) {
-          for (size_t i = 1; i < toRead; ++i) payload[i] = Wire.read();
+        g_boardI2C.beginTransmission(_touchAddr);
+        g_boardI2C.write(static_cast<uint8_t>((kGt911Point1Reg >> 8) & 0xFF));
+        g_boardI2C.write(static_cast<uint8_t>(kGt911Point1Reg & 0xFF));
+        if (g_boardI2C.endTransmission(false) == 0 && g_boardI2C.requestFrom(static_cast<int>(_touchAddr), static_cast<int>(toRead - 1)) == static_cast<int>(toRead - 1)) {
+          for (size_t i = 1; i < toRead; ++i) payload[i] = g_boardI2C.read();
         }
       }
       TouchPointSample sample;
@@ -214,11 +220,11 @@ TouchEvent BoardHAL::pollTouch() {
         _touching = false;
         _touchTwoPoint = false;
       }
-      Wire.beginTransmission(_touchAddr);
-      Wire.write(static_cast<uint8_t>((kGt911StatusReg >> 8) & 0xFF));
-      Wire.write(static_cast<uint8_t>(kGt911StatusReg & 0xFF));
-      Wire.write(static_cast<uint8_t>(0x00));
-      Wire.endTransmission();
+      g_boardI2C.beginTransmission(_touchAddr);
+      g_boardI2C.write(static_cast<uint8_t>((kGt911StatusReg >> 8) & 0xFF));
+      g_boardI2C.write(static_cast<uint8_t>(kGt911StatusReg & 0xFF));
+      g_boardI2C.write(static_cast<uint8_t>(0x00));
+      g_boardI2C.endTransmission();
     } else {
       _touching = false;
       _touchTwoPoint = false;
@@ -245,12 +251,12 @@ BatteryStatus BoardHAL::battery() {
   b.currentMa = 0;
 
   auto readWord = [](uint8_t device, uint8_t reg, uint16_t& out)->bool {
-    Wire.beginTransmission(device);
-    Wire.write(reg);
-    if (Wire.endTransmission(false) != 0) return false;
-    if (Wire.requestFrom(static_cast<int>(device), 2) != 2) return false;
-    uint8_t lo = Wire.read();
-    uint8_t hi = Wire.read();
+    g_boardI2C.beginTransmission(device);
+    g_boardI2C.write(reg);
+    if (g_boardI2C.endTransmission(false) != 0) return false;
+    if (g_boardI2C.requestFrom(static_cast<int>(device), 2) != 2) return false;
+    uint8_t lo = g_boardI2C.read();
+    uint8_t hi = g_boardI2C.read();
     out = decodeLittleEndianWord(lo, hi);
     return true;
   };
