@@ -1,4 +1,4 @@
-#if defined(ARDUINO) && !defined(PAPERGO_DISABLE_EMBEDDED_EPDIY)
+#if defined(ARDUINO) && defined(PAPERGO_FORCE_EPDIY_AMALGAMATION)
 extern "C" {
 #include "../lib/epdiy/src/epdiy.c"
 #include "../lib/epdiy/src/render.c"
