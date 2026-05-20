@@ -12,7 +12,7 @@ class AppManager {
 public:
   void add(App* app);
   void begin(SystemServices& s, const String& startId);
-  void open(SystemServices& s, const String& id);
+  bool open(SystemServices& s, const String& id);
   void update(SystemServices& s);
   void render(SystemServices& s, bool full=false);
   App* active() { return _active; }
