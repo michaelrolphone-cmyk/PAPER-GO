@@ -3146,3 +3146,150 @@ If any requirement is partially implemented, release notes and requirements stat
 
 Do not represent partially implemented features as complete.
 
+
+---
+
+## 8. File management feature requirements (full implementation spec)
+
+This section defines complete requirements for file management across File Explorer, document apps, logs, and API-accessible storage operations.
+
+### 8.1 Scope
+
+File management includes:
+
+1. Browsing and inspecting files/directories on SD card.
+2. Controlled create/rename/move/delete operations within allowed roots.
+3. Opening files in associated apps.
+4. Exposing safe file-management APIs for remote tooling.
+5. Logging file operations for audit/debugging.
+
+### 8.2 Allowed roots and sandbox boundaries
+
+All file operations must be restricted to approved roots:
+
+- `/apps`
+- `/cache`
+- `/documents`
+- `/games`
+- `/gps`
+- `/meshtastic`
+- `/radio`
+- `/config`
+- `/logs`
+- `/webroot`
+
+Rules:
+
+1. Path normalization must reject traversal attempts (`..`, duplicated separators, hidden parent hops).
+2. Absolute paths outside approved roots must be rejected.
+3. API and UI must return explicit permission errors for blocked paths.
+
+### 8.3 File Explorer app requirements
+
+Required behavior:
+
+1. Directory listing with file type, size, and last-modified timestamp.
+2. Sorting modes: name asc/desc, size asc/desc, modified asc/desc.
+3. Filter modes: all/files/dirs and extension filter.
+4. Operations menu per entry: open, rename, delete, move/copy (where supported).
+5. Breadcrumb navigation and parent traversal within sandbox roots.
+6. Create directory and create text file actions.
+
+Acceptance:
+
+- Explorer never freezes on large directories; paginate or chunk listing.
+- Operations provide success/failure feedback with reason.
+
+### 8.4 File association requirements
+
+File-open routing must map by extension:
+
+- `.md` -> Markdown Reader
+- `.txt`/`.log`/`.csv` -> text viewer mode
+- map cache tile extensions -> map diagnostic preview mode
+- unknown -> metadata-only inspector with hex/text preview limits
+
+Rules:
+
+1. Unsupported file types must still be inspectable (metadata + bounded preview).
+2. Opening large files must not exhaust memory.
+
+### 8.5 Safe mutation requirements
+
+For rename/move/copy/delete:
+
+1. Validate source and destination paths in sandbox.
+2. Prevent overwrite unless explicit replace flag is provided.
+3. For directory delete, support recursive delete with confirmation.
+4. For copy/move, support file-size guard and incremental progress state.
+5. Handle partial failure with rollback or explicit partial-result report.
+
+### 8.6 File management web APIs
+
+If web server is enabled, required endpoints:
+
+1. `GET /api/files/list?path=<...>&sort=<...>&order=<...>&filter=<...>`
+2. `GET /api/files/meta?path=<...>`
+3. `POST /api/files/mkdir`
+4. `POST /api/files/write` (bounded text payloads)
+5. `POST /api/files/rename`
+6. `POST /api/files/move`
+7. `POST /api/files/copy`
+8. `POST /api/files/delete`
+
+Response requirements:
+
+- consistent `{ ok, error?, data? }` envelope
+- explicit error codes: `invalid_path`, `forbidden_path`, `not_found`, `already_exists`, `io_error`, `payload_too_large`
+
+Any added/changed endpoints require same-change updates to `docs/openapi.yaml` and API tests.
+
+### 8.7 Logging and audit requirements
+
+Required file:
+
+- `/logs/file_ops_YYYYMMDD.csv`
+
+Columns:
+
+`ms,op,path,dst_path,result,error_code,size_before,size_after`
+
+Operations logged:
+
+`list,meta,mkdir,write,rename,move,copy,delete,open`
+
+### 8.8 Performance and reliability requirements
+
+1. Large directory listing (>1000 entries) must be chunked/paginated.
+2. File preview reads must be bounded by configurable max bytes.
+3. Long operations (recursive delete/copy) must yield to main loop between chunks.
+4. SD transient failures must produce recoverable errors, not crashes.
+
+### 8.9 Security and privacy requirements
+
+1. Deny access to secret-bearing files when policy requires redaction (e.g., credential files in API list views).
+2. Redact sensitive values when returning config file previews (`wifi password`, tokens).
+3. Require explicit confirmation token for destructive recursive delete through API.
+
+### 8.10 Acceptance criteria
+
+File management is complete only when:
+
+1. Explorer supports browse/sort/filter/open/create/rename/delete/move/copy inside sandbox roots.
+2. Web file APIs enforce sandbox rules and return structured errors.
+3. Recursive operations are safe and non-blocking.
+4. File operation logs are written with required schema.
+5. OpenAPI documents all shipped file APIs.
+6. Unit tests cover path normalization/sandbox enforcement and operation result handling.
+
+### 8.11 Required tests
+
+Minimum unit/integration tests:
+
+1. path normalization and traversal rejection tests.
+2. allowed-root enforcement tests.
+3. rename/move/copy/delete success + failure cases.
+4. recursive delete behavior and partial-failure reporting tests.
+5. API payload/response shape tests for file endpoints.
+6. OpenAPI spec presence tests for all file API paths.
+
