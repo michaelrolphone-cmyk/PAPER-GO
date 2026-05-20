@@ -82,6 +82,8 @@ Acceptance checks:
 - Arduino IDE can open the sketch without needing PlatformIO.
 - A clean Arduino compile finds all project headers.
 - No source file fails because `BoardConfig.h`, `BoardHAL.h`, `Services.h`, `Apps.h`, or any other project header is hidden in a PlatformIO-only include directory.
+- Regression guard: for every `#include "X.h"` used by `src/*.cpp` where the canonical header lives under `include/X.h`, the repository must provide an Arduino-resolvable path for `X.h` (either move `X.h` into `src/` or add a forwarding header in `src/`).
+- CI/local check must include an include-path audit that fails when a new `include/*.h` header is referenced from `src/*.cpp` without an Arduino-resolvable `X.h` path.
 
 ---
 
