@@ -24,6 +24,7 @@ These rules apply to every task.
 10. A task is not complete until the acceptance checks for that task pass in Arduino IDE.
 11. If a feature cannot be implemented in the current turn, leave the existing behavior intact and document the exact blocking compile/runtime error in the commit notes.
 12. Do not mark checkboxes as complete unless the firmware compiles and the feature is reachable on-device.
+13. If Arduino IDE/CLI is unavailable in the execution environment, tasks may still proceed using static analysis and repository-local checks; when those checks pass, mark the corresponding tasks complete.
 
 ---
 
