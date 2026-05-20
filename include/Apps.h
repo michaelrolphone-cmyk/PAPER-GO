@@ -89,9 +89,13 @@ class FileExplorerApp : public SimpleListApp {
 public:
   const char* id() const override { return "files"; }
   const char* title() const override { return "Files"; }
+  void onStart(SystemServices& s) override;
   void render(SystemServices& s) override;
   void handleTouch(SystemServices& s, const TouchEvent& ev) override;
-private: String _path = "/";
+private:
+  String _path = "/";
+  int _page = 0;
+  bool _sortDesc = false;
 };
 class WeatherApp : public SimpleListApp {
 public:

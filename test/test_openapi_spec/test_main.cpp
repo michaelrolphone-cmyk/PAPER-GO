@@ -23,6 +23,17 @@ void test_openapi_contains_required_paths() {
   TEST_ASSERT_TRUE(spec.find("/api/radio/scans") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/radio/control") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/meshtastic/stats") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/files/list") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/files/delete") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/maps/status") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/maps/prefetch") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/maps/cache") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/maps/cache/clear") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/gps/status") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("/api/gps/dgps") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("Live raw and DGPS-aware GPS status snapshot") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("predicted correction/rate vectors") != std::string::npos);
+  TEST_ASSERT_TRUE(spec.find("Invalid prefetch payload") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/gps/tracks") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/gps/tracks/clear") != std::string::npos);
   TEST_ASSERT_TRUE(spec.find("/api/power/policy") != std::string::npos);

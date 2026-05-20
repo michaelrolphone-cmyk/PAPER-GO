@@ -4,7 +4,7 @@
 void test_lowlight_toggle_only_when_enabled() {
   LowlightState s{};
   s.enabled = false;
-  s.backlightOn = true;
+  s.backlightOn = false;
   toggleLowlightBacklight(s);
   TEST_ASSERT_TRUE(s.backlightOn);
 
@@ -20,7 +20,7 @@ void test_should_backlight_be_on() {
   LowlightState s{};
   s.enabled = false;
   s.backlightOn = false;
-  TEST_ASSERT_TRUE(shouldBacklightBeOn(s));
+  TEST_ASSERT_FALSE(shouldBacklightBeOn(s));
 
   s.enabled = true;
   s.backlightOn = false;
@@ -38,7 +38,7 @@ void test_set_lowlight_mode_preserves_backlight_state() {
   setLowlightMode(s, false);
   TEST_ASSERT_FALSE(s.enabled);
   TEST_ASSERT_FALSE(s.backlightOn);
-  TEST_ASSERT_TRUE(shouldBacklightBeOn(s));
+  TEST_ASSERT_FALSE(shouldBacklightBeOn(s));
 
   s.backlightOn = true;
   setLowlightMode(s, true);

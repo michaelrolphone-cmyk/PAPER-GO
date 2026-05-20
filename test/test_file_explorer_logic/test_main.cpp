@@ -32,11 +32,17 @@ void test_join_path() {
   TEST_ASSERT_EQUAL_STRING("/docs/work", joinPath("/docs", "work").c_str());
 }
 
+void test_file_base_name() {
+  TEST_ASSERT_EQUAL_STRING("a.txt", fileBaseName("/documents/a.txt").c_str());
+  TEST_ASSERT_EQUAL_STRING("plain", fileBaseName("plain").c_str());
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_sort_dirs_first_then_name);
   RUN_TEST(test_format_entry);
   RUN_TEST(test_parent_path);
   RUN_TEST(test_join_path);
+  RUN_TEST(test_file_base_name);
   return UNITY_END();
 }
