@@ -46,7 +46,6 @@ inline void setPixel4bpp(int x, int y, uint8_t gray) {
 bool BoardHAL::begin() {
   Serial.begin(115200);
   delay(250);
-  Wire.begin(BoardConfig::I2C_SDA, BoardConfig::I2C_SCL);
   SPI.begin(BoardConfig::PIN_SPI_SCLK, BoardConfig::PIN_SPI_MISO, BoardConfig::PIN_SPI_MOSI);
   pinMode(BoardConfig::PIN_SD_CS, OUTPUT);
   digitalWrite(BoardConfig::PIN_SD_CS, HIGH);
@@ -64,21 +63,6 @@ bool BoardHAL::begin() {
     delay(55);
   }
 
-  auto probeI2cAddress = [](uint8_t addr, void* ctx)->bool {
-    TwoWire* wire = static_cast<TwoWire*>(ctx);
-    wire->beginTransmission(addr);
-    return wire->endTransmission() == 0;
-  };
-  _touchAddr = probeGt911Address(probeI2cAddress, &Wire);
-
-  Wire.beginTransmission(BoardConfig::RTC_ADDR);
-  _rtcAvailable = isRtcI2cProbeSuccess(static_cast<uint8_t>(Wire.endTransmission()));
-  Serial.printf("RTC probe 0x%02X: %s\n", BoardConfig::RTC_ADDR, _rtcAvailable ? "ok" : "failed");
-  if (_touchAddr == 0) {
-    Serial.println("GT911 probe failed at 0x14 and 0x5D");
-  } else {
-    Serial.printf("GT911 detected at 0x%02X\n", _touchAddr);
-  }
   _lowlight.enabled = false;
   _lowlight.backlightOn = false;
   applyBacklightState();
@@ -105,6 +89,26 @@ bool BoardHAL::begin() {
   endFrame(true);
   g_bootSplashDrawn = true;
   Serial.println("EPD init: ok");
+
+  // Bring I2C up after EPD init because the display stack configures PMIC/GPIO over I2C.
+  // Initializing Wire first can contend for the bus and trigger "common: acquire bus failed".
+  Wire.begin(BoardConfig::I2C_SDA, BoardConfig::I2C_SCL);
+  auto probeI2cAddress = [](uint8_t addr, void* ctx)->bool {
+    TwoWire* wire = static_cast<TwoWire*>(ctx);
+    wire->beginTransmission(addr);
+    return wire->endTransmission() == 0;
+  };
+  _touchAddr = probeGt911Address(probeI2cAddress, &Wire);
+
+  Wire.beginTransmission(BoardConfig::RTC_ADDR);
+  _rtcAvailable = isRtcI2cProbeSuccess(static_cast<uint8_t>(Wire.endTransmission()));
+  Serial.printf("RTC probe 0x%02X: %s\n", BoardConfig::RTC_ADDR, _rtcAvailable ? "ok" : "failed");
+  if (_touchAddr == 0) {
+    Serial.println("GT911 probe failed at 0x14 and 0x5D");
+  } else {
+    Serial.printf("GT911 detected at 0x%02X\n", _touchAddr);
+  }
+
   beginSD();
   Serial.printf("T5 Field OS HAL online (boot splash: %s)\n", g_bootSplashDrawn ? "drawn" : "not-drawn");
   return true;
