@@ -8,15 +8,23 @@
 #include <NimBLEDevice.h>
 #include "Types.h"
 #include "BoardHAL.h"
+#include "DgpsLogic.h"
 
 class GPSService {
 public:
   bool begin();
   void update();
   GpsFix fix() const { return _fix; }
+  GpsFix activeFix() const { return _usingDgps ? _correctedFix : _fix; }
+  GpsFix correctedFix() const { return _correctedFix; }
   GpsFix bestFit() const { return _bestFit; }
   double computedHeadingDeg() const { return _heading; }
   bool headingReliable() const { return _headingReliable; }
+  bool usingDgps() const { return _usingDgps; }
+  DgpsQualityState dgpsQuality() const { return _dgpsQuality; }
+  uint32_t dgpsAgeMs() const { return _dgpsAgeMs; }
+  const RoverCorrectionState& dgpsState() const { return _dgpsState; }
+  const DgpsPacketStats& dgpsPacketStats() const { return _dgpsPacketStats; }
 private:
   void logFixIfNeeded();
   void refreshTrackLoggingConfig();
@@ -29,6 +37,12 @@ private:
   std::deque<GpsFix> _history;
   GpsFix _bestFit;
   GpsFix _lastLoggedFix;
+  GpsFix _correctedFix;
+  bool _usingDgps = false;
+  DgpsQualityState _dgpsQuality = DgpsQualityState::NO_BASE;
+  uint32_t _dgpsAgeMs = 0;
+  RoverCorrectionState _dgpsState;
+  DgpsPacketStats _dgpsPacketStats;
   bool _trackLoggingEnabled = false;
   uint32_t _nextTrackConfigRefreshMs = 0;
   void computeHeading();
