@@ -4,22 +4,22 @@
 
 void test_page_count_and_start() {
   TEST_ASSERT_EQUAL(0, springboardPageCount(0, 10));
-  TEST_ASSERT_EQUAL(1, springboardPageCount(10, 10));
-  TEST_ASSERT_EQUAL(2, springboardPageCount(11, 10));
-  TEST_ASSERT_EQUAL(20, springboardPageStart(2, 10));
+  TEST_ASSERT_EQUAL(1, springboardPageCount(8, 8));
+  TEST_ASSERT_EQUAL(2, springboardPageCount(9, 8));
+  TEST_ASSERT_EQUAL(16, springboardPageStart(2, 8));
 }
 
 void test_tapped_index_for_page() {
-  int idx0 = springboardTappedIndexForPage(40, 100, 0, 10);
+  int idx0 = springboardTappedIndexForPage(30, 100, 0, 8);
   TEST_ASSERT_EQUAL(0, idx0);
 
-  int idxPage1 = springboardTappedIndexForPage(40, 100, 1, 10);
-  TEST_ASSERT_EQUAL(10, idxPage1);
+  int idxPage1 = springboardTappedIndexForPage(30, 100, 1, 8);
+  TEST_ASSERT_EQUAL(8, idxPage1);
 
-  int lastTileIdx = springboardTappedIndexForPage(760, 290, 0, 10);
-  TEST_ASSERT_EQUAL(9, lastTileIdx);
+  int lastTileIdx = springboardTappedIndexForPage(300, 700, 0, 8);
+  TEST_ASSERT_EQUAL(7, lastTileIdx);
 
-  int outside = springboardTappedIndexForPage(900, 520, 0, 10);
+  int outside = springboardTappedIndexForPage(530, 940, 0, 8);
   TEST_ASSERT_EQUAL(-1, outside);
 }
 

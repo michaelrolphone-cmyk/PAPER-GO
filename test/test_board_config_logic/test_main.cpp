@@ -27,9 +27,19 @@ void test_board_pin_map_matches_t5_47_s3_pro() {
   TEST_ASSERT_EQUAL(48, BoardConfig::EP_CKV);
 }
 
+
+
+void test_board_screen_is_portrait() {
+  TEST_ASSERT_EQUAL(540, BoardConfig::SCREEN_W);
+  TEST_ASSERT_EQUAL(960, BoardConfig::SCREEN_H);
+  TEST_ASSERT_EQUAL(539, BoardConfig::TOUCH_MAX_X);
+  TEST_ASSERT_EQUAL(959, BoardConfig::TOUCH_MAX_Y);
+}
+
 void setup() {
   UNITY_BEGIN();
   RUN_TEST(test_board_pin_map_matches_t5_47_s3_pro);
+  RUN_TEST(test_board_screen_is_portrait);
   UNITY_END();
 }
 

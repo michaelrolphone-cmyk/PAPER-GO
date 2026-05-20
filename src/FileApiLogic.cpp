@@ -7,6 +7,7 @@ String normalizeFilePath(const String& path) {
   String p = path;
   if (!p.startsWith("/")) p = "/" + p;
   while (p.indexOf("//") >= 0) p.replace("//", "/");
+  if (p.indexOf("\\") >= 0) return "";
   if (p.indexOf("..") >= 0) return "";
   return p;
 }

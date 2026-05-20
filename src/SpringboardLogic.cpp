@@ -1,12 +1,12 @@
 #include "SpringboardLogic.h"
 
-static const int kCols = 5;
-static const int kCellW = 180;
-static const int kCellH = 190;
-static const int kStartX = 30;
+static const int kCols = 2;
+static const int kCellW = 250;
+static const int kCellH = 200;
+static const int kStartX = 20;
 static const int kStartY = 90;
-static const int kTileW = 160;
-static const int kTileH = 160;
+static const int kTileW = 230;
+static const int kTileH = 180;
 
 size_t springboardPageCount(size_t itemCount, size_t pageSize) {
   if (pageSize == 0) return 0;

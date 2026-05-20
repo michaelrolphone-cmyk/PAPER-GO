@@ -6,6 +6,8 @@ void test_path_normalize_and_allow() {
   TEST_ASSERT_FALSE(isAllowedFilePath("/etc/passwd"));
   TEST_ASSERT_TRUE(isAllowedFilePath("/documents/a.txt"));
   TEST_ASSERT_FALSE(isAllowedFilePath("/documents/../secret"));
+  TEST_ASSERT_EQUAL_STRING("", normalizeFilePath("/documents\\..\\secret.txt").c_str());
+  TEST_ASSERT_FALSE(isAllowedFilePath("/documents\\secret.txt"));
 }
 
 void test_file_api_json_shapes() {
