@@ -44,10 +44,8 @@ void mapTouchToLandscape(uint16_t panelWidth, uint16_t panelHeight,
   if (clampedX > touchMaxX) clampedX = touchMaxX;
   if (clampedY > touchMaxY) clampedY = touchMaxY;
 
-  int32_t rotatedX = clampedY;
-  int32_t rotatedY = static_cast<int32_t>(touchMaxX) - clampedX;
-  int32_t mappedX = (rotatedX * (static_cast<int32_t>(panelWidth) - 1)) / touchMaxY;
-  int32_t mappedY = (rotatedY * (static_cast<int32_t>(panelHeight) - 1)) / touchMaxX;
+  int32_t mappedX = (clampedX * (static_cast<int32_t>(panelWidth) - 1)) / touchMaxX;
+  int32_t mappedY = (clampedY * (static_cast<int32_t>(panelHeight) - 1)) / touchMaxY;
   if (mappedX < 0) mappedX = 0;
   if (mappedY < 0) mappedY = 0;
   if (mappedX >= panelWidth) mappedX = panelWidth - 1;

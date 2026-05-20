@@ -44,22 +44,22 @@ void test_decode_ready_zero_touch_returns_release_state() {
   TEST_ASSERT_FALSE(out.twoPoint);
 }
 
-void test_map_touch_to_landscape_rotates_and_clamps() {
+void test_map_touch_to_portrait_scales_and_clamps() {
   int16_t x = 0, y = 0;
-  mapTouchToLandscape(960, 540, 539, 959, 100, 50, x, y);
-  TEST_ASSERT_EQUAL(50, x);
-  TEST_ASSERT_EQUAL(439, y);
+  mapTouchToLandscape(540, 960, 539, 959, 100, 50, x, y);
+  TEST_ASSERT_EQUAL(100, x);
+  TEST_ASSERT_EQUAL(50, y);
 
-  mapTouchToLandscape(960, 540, 539, 959, -100, 9999, x, y);
-  TEST_ASSERT_EQUAL(959, x);
-  TEST_ASSERT_EQUAL(539, y);
+  mapTouchToLandscape(540, 960, 539, 959, -100, 9999, x, y);
+  TEST_ASSERT_EQUAL(0, x);
+  TEST_ASSERT_EQUAL(959, y);
 }
 
 void test_map_touch_scales_non_native_touch_range() {
   int16_t x = 0, y = 0;
-  mapTouchToLandscape(960, 540, 1080, 1920, 540, 960, x, y);
-  TEST_ASSERT_INT_WITHIN(1, 479, x);
-  TEST_ASSERT_INT_WITHIN(1, 269, y);
+  mapTouchToLandscape(540, 960, 1080, 1920, 540, 960, x, y);
+  TEST_ASSERT_INT_WITHIN(1, 269, x);
+  TEST_ASSERT_INT_WITHIN(1, 479, y);
 }
 
 int main(int argc, char** argv) {
@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
   RUN_TEST(test_decode_two_point_payload);
   RUN_TEST(test_decode_not_ready_returns_false);
   RUN_TEST(test_decode_ready_zero_touch_returns_release_state);
-  RUN_TEST(test_map_touch_to_landscape_rotates_and_clamps);
+  RUN_TEST(test_map_touch_to_portrait_scales_and_clamps);
   RUN_TEST(test_map_touch_scales_non_native_touch_range);
   return UNITY_END();
 }

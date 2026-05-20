@@ -2,8 +2,8 @@
 #include <Arduino.h>
 
 namespace BoardConfig {
-static constexpr uint16_t SCREEN_W = 960;
-static constexpr uint16_t SCREEN_H = 540;
+static constexpr uint16_t SCREEN_W = 540;
+static constexpr uint16_t SCREEN_H = 960;
 static constexpr uint8_t STATUS_BAR_H = 36;
 static constexpr uint8_t GRAYS = 16;
 
