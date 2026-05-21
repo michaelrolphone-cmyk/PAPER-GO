@@ -13,6 +13,11 @@ public:
   bool beginSD();
   bool sdMounted() const { return _sdMounted; }
   bool rtcAvailable() const { return _rtcAvailable; }
+  bool touchAvailable() const { return _touchAddr != 0; }
+  bool tps65185Available() const { return _tps65185Available; }
+  bool pca9535Available() const { return _pca9535Available; }
+  bool bq25896Available() const { return _bq25896Available; }
+  bool bq27220Available() const { return _bq27220Available; }
   String rtcTime();
   void beginFrame();
   void endFrame(bool fullRefresh=false);
@@ -51,5 +56,9 @@ private:
   bool _powerButtonLast=false;
   LowlightState _lowlight;
   uint8_t _touchAddr = 0;
+  bool _tps65185Available=false;
+  bool _pca9535Available=false;
+  bool _bq25896Available=false;
+  bool _bq27220Available=false;
   void applyBacklightState();
 };

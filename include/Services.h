@@ -66,6 +66,7 @@ public:
 private:
   NetStatus _status;
   CacheService* _cache = nullptr;
+  RadioService* _radio = nullptr;
 };
 
 class CacheService {
@@ -90,10 +91,14 @@ private:
 class RadioService {
 public:
   bool begin();
+  bool bleReady() const { return _bleReady; }
+  bool loraReady() const { return _loraReady; }
   std::vector<RadioSignal> scanBLE(uint32_t ms=3000);
   std::vector<RadioSignal> scanLoRaWindow(uint32_t ms=2000);
 private:
   SX1262* _lora = nullptr;
+  bool _bleReady = false;
+  bool _loraReady = false;
 };
 
 class WebServerService {
@@ -103,7 +108,7 @@ public:
   void start();
   void stop();
   bool running() const { return _running; }
-  void attachContext(BoardHAL* board, GPSService* gps, NetworkService* net, CacheService* cache);
+  void attachContext(BoardHAL* board, GPSService* gps, NetworkService* net, CacheService* cache, RadioService* radio);
 private:
   WebServer _server{80};
   bool _running=false;
@@ -111,5 +116,6 @@ private:
   GPSService* _gps = nullptr;
   NetworkService* _net = nullptr;
   CacheService* _cache = nullptr;
+  RadioService* _radio = nullptr;
   void servePath(const String& path);
 };

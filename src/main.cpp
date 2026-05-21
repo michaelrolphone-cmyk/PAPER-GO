@@ -6,6 +6,7 @@
 #include "AppManager.h"
 #include "Apps.h"
 #include "BootLogLogic.h"
+#include <esp_system.h>
 
 BoardHAL board;
 GPSService gps;
@@ -53,6 +54,19 @@ void setup() {
   bool boardOk = board.begin();
   logStep("board.begin", boardOk, String("sd=") + boolLabel(board.sdMounted()));
 
+  const uint32_t flashBytes = ESP.getFlashChipSize();
+  const uint32_t psramBytes = ESP.getPsramSize();
+  const bool flashOk = flashBytes >= (16UL * 1024UL * 1024UL);
+  const bool psramOk = psramBytes >= (8UL * 1024UL * 1024UL);
+  logStep("flash.detect", flashOk, String(flashBytes / (1024UL * 1024UL)) + "MB");
+  logStep("psram.detect", psramOk, String(psramBytes / (1024UL * 1024UL)) + "MB");
+  logStep("touch.probe", board.touchAvailable(), String("addr=") + (board.touchAvailable() ? String(BoardConfig::GT911_ADDR, HEX) : String("none")));
+  logStep("rtc.probe", board.rtcAvailable(), String("addr=0x") + String(BoardConfig::RTC_ADDR, HEX));
+  logStep("tps65185.probe", board.tps65185Available(), String("addr=0x") + String(BoardConfig::TPS65185_ADDR, HEX));
+  logStep("pca9535.probe", board.pca9535Available(), String("addr=0x") + String(BoardConfig::PCA9535_ADDR, HEX));
+  logStep("bq25896.probe", board.bq25896Available(), String("addr=0x") + String(BoardConfig::BQ25896_ADDR, HEX));
+  logStep("bq27220.probe", board.bq27220Available(), String("addr=0x") + String(BoardConfig::BQ27220_ADDR, HEX));
+
   services.board=&board;
   services.gps=&gps;
   services.net=&net;
@@ -81,7 +95,7 @@ void setup() {
   bool radioOk = radio.begin();
   logStep("radio.begin", radioOk, String("freq=") + String(BoardConfig::LORA_FREQ_MHZ, 1) + "MHz");
 
-  web.attachContext(&board, &gps, &net, &cache);
+  web.attachContext(&board, &gps, &net, &cache, &radio);
   logStep("web.attachContext", true);
   bool webOk = web.begin();
   logStep("web.begin", webOk);

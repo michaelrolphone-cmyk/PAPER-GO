@@ -24,6 +24,7 @@
 #include "MapCacheOpsLogic.h"
 #include "FileApiLogic.h"
 #include "MapConfigLogic.h"
+#include "HardwareApiLogic.h"
 
 namespace {
 static Module dgpsMod(BoardConfig::PIN_LORA_NSS, BoardConfig::PIN_LORA_DIO1, BoardConfig::PIN_LORA_RST, BoardConfig::PIN_LORA_BUSY);
@@ -214,16 +215,21 @@ void CacheService::recordMapCacheLookup(bool hit) {
 }
 
 bool RadioService::begin() {
+  if (!_bleReady) {
+    NimBLEDevice::init("");
+    _bleReady = true;
+  }
   static Module mod(BoardConfig::PIN_LORA_NSS, BoardConfig::PIN_LORA_DIO1, BoardConfig::PIN_LORA_RST, BoardConfig::PIN_LORA_BUSY);
   static SX1262 lora(&mod);
   _lora = &lora;
   int state = _lora->begin(BoardConfig::LORA_FREQ_MHZ);
+  _loraReady = (state == RADIOLIB_ERR_NONE);
   Serial.printf("LoRa begin state=%d\n", state);
-  return state == RADIOLIB_ERR_NONE;
+  return _loraReady;
 }
 std::vector<RadioSignal> RadioService::scanBLE(uint32_t ms) {
   std::vector<RadioSignal> out;
-  NimBLEDevice::init("");
+  if (!_bleReady) { NimBLEDevice::init(""); _bleReady = true; }
   NimBLEScan* scan = NimBLEDevice::getScan();
   scan->setActiveScan(false);
   scan->start(ms/1000, false);
@@ -262,7 +268,7 @@ std::vector<RadioSignal> RadioService::scanLoRaWindow(uint32_t ms) {
 }
 
 bool WebServerService::begin() { return true; }
-void WebServerService::attachContext(BoardHAL* board, GPSService* gps, NetworkService* net, CacheService* cache) { _board = board; _gps = gps; _net = net; _cache = cache; }
+void WebServerService::attachContext(BoardHAL* board, GPSService* gps, NetworkService* net, CacheService* cache, RadioService* radio) { _board = board; _gps = gps; _net = net; _cache = cache; _radio = radio; }
 void WebServerService::start() {
   if (_running) return;
   _server.on("/api/health", [this](){ _server.send(200, "application/json", "{\"ok\":true,\"service\":\"web\"}"); });
@@ -275,6 +281,27 @@ void WebServerService::start() {
     const bool cacheActivity = _cache && hasRecentCacheActivity(_cache->lastMapCacheLookupMs(), millis(), 5UL * 60UL * 1000UL);
     String body = buildStatusApiJson(_net->status(), _gps->fix(), _board->battery(), _board->sdMounted(), _running, unreadMessages, cacheActivity);
     _server.send(200, "application/json", body);
+  });
+
+  _server.on("/api/hardware", [this](){
+    if (!_board || !_gps || !_net) { _server.send(503, "application/json", "{\"error\":\"hardware context unavailable\"}"); return; }
+    NetStatus ns = _net->status();
+    HardwareStatus hs;
+    hs.flashOk = ESP.getFlashChipSize() >= (16UL * 1024UL * 1024UL);
+    hs.psramOk = ESP.getPsramSize() >= (8UL * 1024UL * 1024UL);
+    hs.sdMounted = _board->sdMounted();
+    hs.wifiReady = ns.wifi;
+    hs.gpsReady = true;
+    hs.epdReady = true;
+    hs.touchReady = _board->touchAvailable();
+    hs.rtcReady = _board->rtcAvailable();
+    hs.tps65185Ready = _board->tps65185Available();
+    hs.bq25896Ready = _board->bq25896Available();
+    hs.bq27220Ready = _board->bq27220Available();
+    hs.pca9535Ready = _board->pca9535Available();
+    hs.bleReady = _radio ? _radio->bleReady() : false;
+    hs.loraReady = _radio ? _radio->loraReady() : false;
+    _server.send(200, "application/json", buildHardwareStatusJson(hs));
   });
   _server.on("/api/power/policy", [this](){
     if (!_cache) { _server.send(503, "application/json", "{\"error\":\"cache context unavailable\"}"); return; }

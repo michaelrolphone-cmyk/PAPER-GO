@@ -18,6 +18,14 @@ paths:
           description: Current status JSON
         '503':
           description: Status context unavailable
+  /api/hardware:
+    get:
+      summary: Hardware readiness snapshot for boot-initialized peripherals
+      responses:
+        "200":
+          description: Hardware readiness payload
+        "503":
+          description: Hardware context unavailable
   /api/apps/order:
     get:
       summary: Returns configured app order JSON from SD config
