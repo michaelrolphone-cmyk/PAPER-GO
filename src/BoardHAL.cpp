@@ -10,20 +10,24 @@
 #include "RtcProbeLogic.h"
 #include <SPI.h>
 
-#if __has_include(<epdiy.h>)
-#include <epdiy.h>
-#else
-#error "epdiy.h not found. The paper display driver is not in the build."
-#endif
+#include "epd_driver.h"
 
 namespace {
-constexpr const EpdWaveform* kWaveform = EPD_BUILTIN_WAVEFORM;
-EpdiyHighlevelState g_hl;
 TwoWire g_boardI2C(1);
 bool g_displayReady = false;
 bool g_bootSplashDrawn = false;
 int g_fbWidth = BoardConfig::SCREEN_W;
 int g_fbHeight = BoardConfig::SCREEN_H;
+int g_panelWidth = BoardConfig::SCREEN_H;
+int g_panelHeight = BoardConfig::SCREEN_W;
+enum class PanelMapMode : uint8_t { Direct, RotateCW, RotateCCW };
+PanelMapMode g_panelMapMode = PanelMapMode::RotateCW;
+uint8_t* g_framebuffer = nullptr;
+bool g_frameActive = false;
+bool g_frameDirty = false;
+uint16_t g_partialFramesSinceFull = 0;
+constexpr uint16_t kMaxPartialFramesBeforeFull = 12;
+
 
 inline void powerDownDisplayPeripherals() {
 #if defined(ARDUINO_T5_E_PAPER_S3_V7)
@@ -33,14 +37,33 @@ inline void powerDownDisplayPeripherals() {
 #endif
 }
 
+
+inline bool mapLogicalToPanelPixel(int lx, int ly, int& px, int& py) {
+  if (lx < 0 || ly < 0 || lx >= g_fbWidth || ly >= g_fbHeight) return false;
+    if (g_panelMapMode == PanelMapMode::Direct) {
+    px = lx;
+    py = ly;
+  } else if (g_panelMapMode == PanelMapMode::RotateCCW) {
+    px = (g_fbHeight - 1) - ly;
+    py = lx;
+  } else {
+    // Logical UI portrait (540x960) mapped into landscape panel memory (960x540).
+    px = ly;
+    py = (g_fbWidth - 1) - lx;
+  }
+  return px >= 0 && py >= 0 && px < g_panelWidth && py < g_panelHeight;
+}
+
 inline void setPixel4bpp(int x, int y, uint8_t gray) {
   if (!g_displayReady) return;
-  if (x < 0 || y < 0 || x >= g_fbWidth || y >= g_fbHeight) return;
-  uint8_t* fb = epd_hl_get_framebuffer(&g_hl);
+  uint8_t* fb = g_framebuffer;
   if (!fb) return;
-  const int idx = y * g_fbWidth + x;
+  int px = 0, py = 0;
+  if (!mapLogicalToPanelPixel(x, y, px, py)) return;
+  const int idx = py * g_panelWidth + px;
   const int byteIndex = idx >> 1;
   fb[byteIndex] = pack4bppPixel(fb[byteIndex], idx, gray);
+  g_frameDirty = true;
 }
 }
 
@@ -68,26 +91,44 @@ bool BoardHAL::begin() {
   _lowlight.backlightOn = false;
   applyBacklightState();
   // Bring up the panel first and force a known-good smoke frame before other services.
-  epd_init(&epd_board_v7, &ED047TC1, EPD_LUT_64K);
-  g_hl = epd_hl_init(kWaveform);
-  epd_set_rotation(EPD_ROT_PORTRAIT);
-  epd_set_lcd_pixel_clock_MHz(17);
-  const int rotatedW = epd_rotated_display_width();
-  const int rotatedH = epd_rotated_display_height();
-  g_fbWidth = rotatedW;
-  g_fbHeight = rotatedH;
-  Serial.printf("EPD rotated size: %dx%d\n", rotatedW, rotatedH);
-  if (rotatedW != BoardConfig::SCREEN_W || rotatedH != BoardConfig::SCREEN_H) {
-    Serial.printf("EPD size mismatch: expected %dx%d\n", BoardConfig::SCREEN_W, BoardConfig::SCREEN_H);
+  epd_init();
+  const int rotatedW = EPD_HEIGHT;
+  const int rotatedH = EPD_WIDTH;
+  g_panelWidth = rotatedW;
+  g_panelHeight = rotatedH;
+  g_fbWidth = BoardConfig::SCREEN_W;
+  g_fbHeight = BoardConfig::SCREEN_H;
+  if (rotatedW == g_fbWidth && rotatedH == g_fbHeight) {
+    g_panelMapMode = PanelMapMode::Direct;
+  } else if (rotatedW == g_fbHeight && rotatedH == g_fbWidth) {
+    g_panelMapMode = BoardConfig::PANEL_ROTATE_CLOCKWISE ? PanelMapMode::RotateCW : PanelMapMode::RotateCCW;
+  } else {
+    g_panelMapMode = PanelMapMode::RotateCW;
+    Serial.printf("EPD unexpected size %dx%d; defaulting to RotateCW mapping\n", rotatedW, rotatedH);
   }
-  epd_poweron();
-  epd_clear();
-  powerDownDisplayPeripherals();
+  Serial.printf("EPD rotated size: %dx%d (logic framebuffer: %dx%d, mapMode=%u, cwPref=%s)\n",
+                rotatedW, rotatedH, g_fbWidth, g_fbHeight, static_cast<unsigned>(g_panelMapMode),
+                BoardConfig::PANEL_ROTATE_CLOCKWISE ? "true" : "false");
+  // Avoid panel-wide clear here; it adds a second long refresh and can look like a boot freeze.
+  // We draw the splash into framebuffer and perform a single explicit refresh via endFrame(true).
+  g_framebuffer = (uint8_t*)ps_calloc(sizeof(uint8_t), static_cast<size_t>(EPD_WIDTH) * static_cast<size_t>(EPD_HEIGHT) / 2);
+  if (!g_framebuffer) {
+    Serial.println("EPD framebuffer allocation failed");
+    return false;
+  }
   g_displayReady = true;
   clear(15);
+  // Orientation probes: distinct corner markers help validate logical->panel rotation on hardware.
+  fillRect(0, 0, 28, 28, 0);
+  fillRect(g_fbWidth - 28, 0, 28, 28, 4);
+  fillRect(0, g_fbHeight - 28, 28, 28, 8);
+  fillRect(g_fbWidth - 28, g_fbHeight - 28, 28, 28, 12);
   fillRect(40, 40, 300, 120, 0);
   drawText(60, 80, "PAPER GO", 15, 3);
+  drawText(60, 125, String("MAP ") + static_cast<unsigned>(g_panelMapMode), 15, 1);
+  uint32_t splashStart = millis();
   endFrame(true);
+  Serial.printf("Boot splash refresh took %lums\n", static_cast<unsigned long>(millis() - splashStart));
   g_bootSplashDrawn = true;
   Serial.println("EPD init: ok");
 
@@ -126,20 +167,33 @@ bool BoardHAL::beginSD() {
   return _sdMounted;
 }
 
-void BoardHAL::beginFrame() {}
+void BoardHAL::beginFrame() {
+  g_frameActive = true;
+  g_frameDirty = false;
+}
 void BoardHAL::endFrame(bool fullRefresh) {
-  if (!g_displayReady) return;
+  if (!g_displayReady || !g_framebuffer) return;
+  bool requireFull = fullRefresh || (g_partialFramesSinceFull >= kMaxPartialFramesBeforeFull);
+  if (!requireFull && !g_frameDirty) return;
   epd_poweron();
-  const int mode = selectDisplayUpdateMode(fullRefresh, MODE_GC16, MODE_GL16);
-  epd_hl_update_screen(&g_hl, static_cast<enum EpdDrawMode>(mode), epd_ambient_temperature());
+  if (requireFull) {
+    epd_clear();
+    g_partialFramesSinceFull = 0;
+  }
+  epd_draw_grayscale_image(epd_full_screen(), g_framebuffer);
   powerDownDisplayPeripherals();
+  if (!requireFull) g_partialFramesSinceFull++;
+  g_frameActive = false;
+  g_frameDirty = false;
 }
 
 void BoardHAL::clear(uint8_t gray) {
   uint8_t safeGray = clampGrayLevel(gray);
-  const int h = g_fbHeight;
-  const int w = g_fbWidth;
-  for (int y = 0; y < h; ++y) for (int x = 0; x < w; ++x) setPixel4bpp(x,y,safeGray);
+  uint8_t* fb = g_framebuffer;
+  if (!fb) return;
+  const uint8_t packed = static_cast<uint8_t>((safeGray << 4) | safeGray);
+  const size_t bytes = static_cast<size_t>(g_panelWidth) * static_cast<size_t>(g_panelHeight) / 2;
+  memset(fb, packed, bytes);
 }
 
 void BoardHAL::fillRect(int x,int y,int w,int h,uint8_t gray) {
@@ -214,8 +268,8 @@ TouchEvent BoardHAL::pollTouch() {
       if (decodeGt911TouchPayload(payload, toRead, sample)) {
         _touching = sample.touching;
         _touchTwoPoint = sample.twoPoint;
-        mapTouchToLandscape(BoardConfig::SCREEN_W, BoardConfig::SCREEN_H, BoardConfig::TOUCH_MAX_X, BoardConfig::TOUCH_MAX_Y, sample.x1, sample.y1, _touchX, _touchY);
-        if (sample.twoPoint) mapTouchToLandscape(BoardConfig::SCREEN_W, BoardConfig::SCREEN_H, BoardConfig::TOUCH_MAX_X, BoardConfig::TOUCH_MAX_Y, sample.x2, sample.y2, _touchX2, _touchY2);
+        mapTouchToLandscape(BoardConfig::SCREEN_W, BoardConfig::SCREEN_H, BoardConfig::TOUCH_MAX_X, BoardConfig::TOUCH_MAX_Y, sample.x1, sample.y1, _touchX, _touchY, BoardConfig::TOUCH_SWAP_XY, BoardConfig::TOUCH_MIRROR_X, BoardConfig::TOUCH_MIRROR_Y);
+        if (sample.twoPoint) mapTouchToLandscape(BoardConfig::SCREEN_W, BoardConfig::SCREEN_H, BoardConfig::TOUCH_MAX_X, BoardConfig::TOUCH_MAX_Y, sample.x2, sample.y2, _touchX2, _touchY2, BoardConfig::TOUCH_SWAP_XY, BoardConfig::TOUCH_MIRROR_X, BoardConfig::TOUCH_MIRROR_Y);
       } else {
         _touching = false;
         _touchTwoPoint = false;
@@ -261,14 +315,18 @@ BatteryStatus BoardHAL::battery() {
     return true;
   };
 
+  bool haveGaugeSoc = false;
   uint16_t soc = 0;
   if (readWord(BoardConfig::BQ27220_ADDR, 0x2C, soc)) {
     b.percent = clampBatteryPercent(static_cast<int>(soc));
+    haveGaugeSoc = true;
   }
 
+  bool haveGaugeMv = false;
   uint16_t mv = 0;
   if (readWord(BoardConfig::BQ27220_ADDR, 0x08, mv)) {
     b.voltage = bq27220MilliVoltsToVolts(mv);
+    haveGaugeMv = true;
   }
 
   uint16_t currentRaw = 0;
@@ -276,13 +334,73 @@ BatteryStatus BoardHAL::battery() {
     b.currentMa = bq27220CurrentRawToMilliamps(currentRaw);
   }
 
+  bool haveCharger = false;
   uint16_t chargeStatus = 0;
   if (readWord(BoardConfig::BQ25896_ADDR, 0x0B, chargeStatus)) {
     b.charging = bq25896ChargeStatusIndicatesCharging(chargeStatus);
+    haveCharger = true;
+  }
+
+  bool usedAdcFallback = false;
+  if ((!haveGaugeSoc || !haveGaugeMv) && BoardConfig::PIN_BAT_ADC >= 0) {
+    int raw = analogRead(BoardConfig::PIN_BAT_ADC);
+    if (raw >= 0) {
+      constexpr float kAdcRef = 3.3f;
+      constexpr float kAdcMax = 4095.0f;
+      constexpr float kDivider = 2.0f;
+      float measured = (static_cast<float>(raw) / kAdcMax) * kAdcRef * kDivider;
+      if (!haveGaugeMv) b.voltage = measured;
+      if (!haveGaugeSoc) {
+        float pct = (measured - 3.3f) / (4.2f - 3.3f) * 100.0f;
+        b.percent = clampBatteryPercent(static_cast<int>(pct + (pct >= 0 ? 0.5f : -0.5f)));
+      }
+      usedAdcFallback = true;
+    }
+  }
+
+  static uint32_t lastBatteryLogMs = 0;
+  uint32_t now = millis();
+  if (now - lastBatteryLogMs > 30000) {
+    lastBatteryLogMs = now;
+    Serial.printf("[BAT] gauge=%s charger=%s adcFallback=%s pct=%d volt=%.3f curr=%.1f charging=%s\n",
+                  (haveGaugeSoc || haveGaugeMv) ? "yes" : "no",
+                  haveCharger ? "yes" : "no",
+                  usedAdcFallback ? "yes" : "no",
+                  b.percent, b.voltage, b.currentMa,
+                  b.charging ? "yes" : "no");
   }
 
   return b;
 }
+
+static uint8_t bcdToDec(uint8_t v) { return static_cast<uint8_t>(((v >> 4) * 10) + (v & 0x0F)); }
+
+String BoardHAL::rtcTime() {
+  if (!_rtcAvailable) return "";
+  // PCF8563 time regs start at 0x02: sec, min, hour, day, weekday, month, year
+  g_boardI2C.beginTransmission(BoardConfig::RTC_ADDR);
+  g_boardI2C.write(static_cast<uint8_t>(0x02));
+  if (g_boardI2C.endTransmission(false) != 0) return "";
+  if (g_boardI2C.requestFrom(static_cast<int>(BoardConfig::RTC_ADDR), 7) != 7) return "";
+  uint8_t secRaw = g_boardI2C.read();
+  uint8_t minRaw = g_boardI2C.read();
+  uint8_t hourRaw = g_boardI2C.read();
+  uint8_t dayRaw = g_boardI2C.read();
+  (void)g_boardI2C.read();
+  uint8_t monthRaw = g_boardI2C.read();
+  uint8_t yearRaw = g_boardI2C.read();
+
+  uint8_t sec = bcdToDec(secRaw & 0x7F);
+  uint8_t min = bcdToDec(minRaw & 0x7F);
+  uint8_t hour = bcdToDec(hourRaw & 0x3F);
+  uint8_t day = bcdToDec(dayRaw & 0x3F);
+  uint8_t month = bcdToDec(monthRaw & 0x1F);
+  uint8_t year = bcdToDec(yearRaw);
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%02u-%02u-20%02u %02u:%02u:%02u", day, month, year, hour, min, sec);
+  return String(buf);
+}
+
 void BoardHAL::sleepSeconds(uint32_t seconds) { esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL); esp_deep_sleep_start(); }
 void BoardHAL::setLowlightMode(bool enabled) {
   ::setLowlightMode(_lowlight, enabled);

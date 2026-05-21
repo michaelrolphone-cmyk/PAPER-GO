@@ -13,6 +13,7 @@ public:
   bool beginSD();
   bool sdMounted() const { return _sdMounted; }
   bool rtcAvailable() const { return _rtcAvailable; }
+  String rtcTime();
   void beginFrame();
   void endFrame(bool fullRefresh=false);
   void clear(uint8_t gray=15);

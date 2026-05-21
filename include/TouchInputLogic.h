@@ -13,4 +13,5 @@ struct TouchPointSample {
 bool decodeGt911TouchPayload(const uint8_t* payload, size_t payloadLen, TouchPointSample& out);
 void mapTouchToLandscape(uint16_t panelWidth, uint16_t panelHeight,
                          uint16_t touchMaxX, uint16_t touchMaxY,
-                         int16_t srcX, int16_t srcY, int16_t& dstX, int16_t& dstY);
+                         int16_t srcX, int16_t srcY, int16_t& dstX, int16_t& dstY,
+                         bool swapXY = false, bool mirrorX = false, bool mirrorY = false);

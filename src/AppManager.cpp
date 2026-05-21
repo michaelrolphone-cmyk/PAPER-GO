@@ -54,6 +54,7 @@ void AppManager::update(SystemServices& s) {
       if (!s.net->status().wifi) s.net->connectSaved();
       s.requestHome = true;
     } else if (shouldPowerButtonEnterLowPower(activeId)) {
+      s.board->setLowlightMode(true);
       open(s, "lock");
       return;
     }
@@ -73,14 +74,33 @@ void AppManager::update(SystemServices& s) {
   else if(ev.type == TouchType::SwipeRight && String(_active->id()) != "springboard") s.requestBack = true;
   else if(ev.type != TouchType::None) _active->handleTouch(s, ev);
   bool interactionRenderRequested = shouldRenderAfterInputEvent(ev.type, homePressed, powerPressed);
-  if(s.requestHome) { s.requestHome=false; _nav.clear(); open(s,"springboard"); return; }
-  if(s.requestBack) { s.requestBack=false; String backId = _nav.popBackTarget(); if(backId.length()) open(s, backId); else open(s,"springboard"); return; }
-  if(s.requestOpenApp.length()) { String id=s.requestOpenApp; s.requestOpenApp=""; open(s,id); return; }
+  if(s.requestHome) {
+    s.requestHome=false;
+    _nav.clear();
+    s.board->setLowlightMode(false);
+    open(s,"springboard");
+    return;
+  }
+  if(s.requestBack) {
+    s.requestBack=false;
+    String backId = _nav.popBackTarget();
+    s.board->setLowlightMode(false);
+    if(backId.length()) open(s, backId); else open(s,"springboard");
+    return;
+  }
+  if(s.requestOpenApp.length()) {
+    String id=s.requestOpenApp;
+    s.requestOpenApp="";
+    s.board->setLowlightMode(false);
+    open(s,id);
+    return;
+  }
   _powerState.lockScreenActive = String(_active->id()) == "lock";
   BatteryStatus batt = s.board->battery();
   PowerAction action = evaluatePowerActionWithCharging(_powerPolicy, _powerState, now, batt.charging);
   if (action == PowerAction::EnterLockScreen && !_powerState.lockScreenActive) {
     _powerState.lastInteractionMs = now;
+    s.board->setLowlightMode(true);
     open(s, "lock");
     return;
   }
@@ -127,7 +147,10 @@ void AppManager::render(SystemServices& s, bool full) {
     s.board->drawText(380,10,String("SD:")+(snapshot.sdMounted?"ok":"fail"),0,1);
     s.board->drawText(470,10,String("BAT:")+(b.percent>=0?String(b.percent)+"%":"?"),0,1);
     s.board->drawText(580,10,b.charging?"charging":"",0,1);
-    s.board->drawText(700,10,String("TIME:")+timeSourceLabel(timeSource),0,1);
+    String timeLabel = String("TIME:") + timeSourceLabel(timeSource);
+    String rtc = s.board->rtcTime();
+    if (timeSource == TimeSource::RTC && rtc.length()) timeLabel += " " + rtc;
+    s.board->drawText(700,10,timeLabel,0,1);
     s.board->drawText(850,10,_active->title(),0,1);
     _previousStatusBar = snapshot;
     _havePreviousStatusBar = true;

@@ -6,4 +6,4 @@
 // compiling files under src/.
 
 #include <Arduino.h>
-#include <epdiy.h>
+#include "epd_driver.h"

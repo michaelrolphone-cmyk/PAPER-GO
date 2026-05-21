@@ -70,9 +70,12 @@ public:
   const char* title() const override { return "URL Fetcher"; }
   void onStart(SystemServices& s) override;
   void render(SystemServices& s) override;
+  void handleTouch(SystemServices& s, const TouchEvent& ev) override;
 private:
+  void refresh(SystemServices& s);
   String _status;
   String _preview;
+  bool _offline = false;
 };
 class MarkdownReaderApp : public SimpleListApp {
 public:

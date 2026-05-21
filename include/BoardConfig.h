@@ -33,6 +33,9 @@ static constexpr int PIN_TOUCH_INT = 3;
 static constexpr int PIN_TOUCH_RST = 9;
 static constexpr uint16_t TOUCH_MAX_X = 539;
 static constexpr uint16_t TOUCH_MAX_Y = 959;
+static constexpr bool TOUCH_SWAP_XY = false;
+static constexpr bool TOUCH_MIRROR_X = false;
+static constexpr bool TOUCH_MIRROR_Y = false;
 static constexpr uint8_t RTC_ADDR = 0x51;
 static constexpr int PIN_RTC_IRQ = 2;
 static constexpr uint8_t BQ25896_ADDR = 0x6B;
@@ -41,7 +44,12 @@ static constexpr uint8_t TPS65185_ADDR = 0x68;
 static constexpr uint8_t PCA9535_ADDR = 0x20;
 static constexpr int PIN_PCA9535_INT = 38;
 static constexpr uint8_t PCA9535_IO_BUTTON = 12;
+static constexpr int PIN_BAT_ADC = -1;
 static constexpr int PIN_BOOT_BTN = 0;
+
+// When logical UI (540x960) is mapped into landscape panel memory (960x540),
+// choose clockwise vs counter-clockwise software rotation.
+static constexpr bool PANEL_ROTATE_CLOCKWISE = true;
 
 // Frontlight enable.
 static constexpr int PIN_BL_EN = 11;

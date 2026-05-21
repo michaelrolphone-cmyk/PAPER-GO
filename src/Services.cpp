@@ -185,7 +185,14 @@ bool CacheService::begin() { ensureLayout(); return true; }
 void CacheService::ensureLayout() {
   if (!SD.cardType()) return;
   const char* dirs[] = {"/apps","/cache","/cache/maps","/cache/weather","/cache/http","/documents","/documents/markdown","/documents/text","/webroot","/games","/gps","/gps/tracks","/gps/fixes","/meshtastic","/meshtastic/messages","/meshtastic/nodes","/meshtastic/config","/radio","/radio/scans","/config","/logs"};
-  for (auto d: dirs) if (!SD.exists(d)) SD.mkdir(d);
+  for (auto d: dirs) {
+    if (SD.exists(d)) continue;
+    if (!SD.mkdir(d)) {
+      Serial.printf("[STORAGE] mkdir failed: %s\n", d);
+    } else {
+      Serial.printf("[STORAGE] mkdir ok: %s\n", d);
+    }
+  }
 }
 String CacheService::mapTilePath(const String& provider, int z, int x, int y) const { return "/cache/maps/"+provider+"/"+String(z)+"/"+String(x)+"/"+String(y)+".tile"; }
 bool CacheService::hasFile(const String& path) const { return SD.exists(path); }
@@ -526,6 +533,22 @@ void WebServerService::servePath(const String& uri) {
   String path = mapUriToWebrootPath(uri);
   if(!SD.exists(path)) { _server.send(404, "text/plain", "Not found"); return; }
   File f=SD.open(path, FILE_READ);
+  if (!f) { _server.send(500, "text/plain", "Failed to open path"); return; }
+  if (f.isDirectory()) {
+    String html = "<html><body><h3>/webroot listing</h3><ul>";
+    File child = f.openNextFile();
+    while (child) {
+      String name = String(child.name());
+      if (name.startsWith("/webroot")) name = name.substring(String("/webroot").length());
+      if (name.length() == 0) name = "/";
+      html += "<li><a href="" + name + "">" + name + "</a></li>";
+      child = f.openNextFile();
+    }
+    html += "</ul></body></html>";
+    _server.send(200, "text/html", html);
+    f.close();
+    return;
+  }
   _server.streamFile(f, mimeTypeForPath(path));
   f.close();
 }

@@ -134,9 +134,23 @@ bool SpringboardApp::handleHomeButton(SystemServices& s) {
   return springboardHandleHomePress(_page);
 }
 
+
+static GpsFix resolveAppLocationFix(GPSService* gps, String& source) {
+  source = "none";
+  if (!gps) return GpsFix{};
+  GpsFix active = gps->activeFix();
+  if (active.valid) { source = gps->usingDgps() ? "dgps" : "gps"; return active; }
+  GpsFix best = gps->bestFit();
+  if (best.valid) { source = "best-fit"; return best; }
+  GpsFix raw = gps->fix();
+  if (raw.valid) { source = "raw"; return raw; }
+  return GpsFix{};
+}
+
 void LockScreenApp::render(SystemServices& s) {
   s.board->clear(15);
-  GpsFix f=s.gps->activeFix();
+  String locSource;
+  GpsFix f = resolveAppLocationFix(s.gps, locSource);
   GpsFix raw=s.gps->fix();
   BatteryStatus b = s.board->battery();
   s.board->drawText(40,70,"LOCK",0,2);
@@ -172,7 +186,8 @@ void LockScreenApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
 void GpsMapApp::update(SystemServices& s, uint32_t now) { s.gps->update(); }
 void GpsMapApp::render(SystemServices& s) {
   titleBar(s, "GPS Map");
-  GpsFix f=s.gps->activeFix();
+  String locSource;
+  GpsFix f = resolveAppLocationFix(s.gps, locSource);
   GpsFix raw=s.gps->fix();
   s.board->drawRect(20,95,620,390,0);
   const int gridX = 40, gridY = 120, cellW = 180, cellH = 110;
@@ -207,7 +222,7 @@ void GpsMapApp::render(SystemServices& s) {
   }
   int x=670, y=105;
   s.board->drawText(x,y,"Mode",0,2); y+=35;
-  s.board->drawText(x,y,s.gps->usingDgps()?"DGPS":"GPS",s.gps->usingDgps()?0:5,1); y+=25;
+  s.board->drawText(x,y,String("LOC src: ")+locSource,s.gps->usingDgps()?0:5,1); y+=25;
   s.board->drawText(x,y,"Quality: "+dgpsQualityStateLabel(s.gps->dgpsQuality()),0,1); y+=25;
   s.board->drawText(x,y,"Age: "+String(s.gps->dgpsAgeMs()/1000.0,1)+"s",0,1); y+=25;
   s.board->drawText(x,y,"Fix",0,2); y+=35;
@@ -225,6 +240,12 @@ void GpsMapApp::render(SystemServices& s) {
   s.board->drawText(x,y,"Tile: " + mapTileLabel(center),0,1); y+=22;
   CacheCoverageState coverage = deriveCacheCoverageState(totalTiles, cachedTiles);
   s.board->drawText(x,y,"Tiles: "+String(cacheCoverageLabel(coverage))+" ("+String(cachedTiles)+"/"+String(totalTiles)+")",0,1); y+=22;
+  bool wifi = s.net && s.net->status().wifi;
+  String mapState = wifi ? String("online") : String("offline-cache");
+  if (!wifi && coverage == CacheCoverageState::NONE) mapState = "offline-miss";
+  else if (!wifi && coverage == CacheCoverageState::PARTIAL) mapState = "offline-partial";
+  else if (!wifi && coverage == CacheCoverageState::FULL) mapState = "offline-full";
+  s.board->drawText(x,y,"Map state: "+mapState,(wifi || coverage != CacheCoverageState::NONE)?0:5,1); y+=22;
   if (s.cache) s.board->drawText(x,y,"Cache H/M: "+String(s.cache->mapCacheHitCount())+"/"+String(s.cache->mapCacheMissCount()),0,1);
   else s.board->drawText(x,y,"Cache service unavailable",5,1);
 }
@@ -279,9 +300,10 @@ void MeshtasticApp::render(SystemServices& s) {
   s.board->drawText(20,180,formatMeshtasticStorageStatus(msgCount, nodeCount),0,1);
   s.board->drawText(20,210,meshtasticAppNoticeText(),5,1);
 }
-void UrlFetcherApp::onStart(SystemServices& s) {
+void UrlFetcherApp::refresh(SystemServices& s) {
   _status = "No config";
   _preview = "";
+  _offline = false;
   if (!s.cache) { _status = "Cache unavailable"; return; }
   String cfgRaw = s.cache->readText("/config/url_fetcher.json", 2048);
   UrlFetcherConfig cfg = parseUrlFetcherConfig(cfgRaw);
@@ -291,6 +313,7 @@ void UrlFetcherApp::onStart(SystemServices& s) {
   if (!s.net || !s.net->status().wifi) {
     _status = "Offline: using cache";
     _preview = s.cache->readText(cachePath, 600);
+    _offline = true;
     return;
   }
 
@@ -304,21 +327,43 @@ void UrlFetcherApp::onStart(SystemServices& s) {
     _preview = body.substring(0, 600);
     _status = "Fetched HTTP " + String(code);
   } else {
-    _status = "HTTP GET failed";
+    _status = "HTTP GET failed (cache fallback)";
     _preview = s.cache->readText(cachePath, 600);
   }
   http.end();
 }
 
+void UrlFetcherApp::onStart(SystemServices& s) { refresh(s); }
+
+
+
+void UrlFetcherApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
+  if (ev.type == TouchType::Tap && ev.y < (BoardConfig::STATUS_BAR_H + 80)) refresh(s);
+}
+
+static String activeMarkdownPath(SystemServices& s) {
+  String path = "/documents/markdown/readme.md";
+  if (!s.cache) return path;
+  String openCfg = s.cache->readText("/config/file_open.json", 512);
+  int k = openCfg.indexOf("\"path\"");
+  if (k < 0) return path;
+  int q1 = openCfg.indexOf('"', openCfg.indexOf(':', k));
+  int q2 = q1 >= 0 ? openCfg.indexOf('"', q1 + 1) : -1;
+  if (q1 >= 0 && q2 > q1) path = openCfg.substring(q1 + 1, q2);
+  return path;
+}
+
 void UrlFetcherApp::render(SystemServices& s) {
   titleBar(s,"URL Fetcher");
+  if (!s.board->sdMounted()) { s.board->drawText(20,110,"SD not mounted (URL cache/config unavailable)",5,1); return; }
   s.board->drawText(20,110,"Config: /config/url_fetcher.json",0,1);
   s.board->drawText(20,140,"Status: " + _status,0,1);
+  if (_offline) s.board->drawText(20,165,"Offline cache mode",5,1);
   s.board->drawRect(20,180,880,260,0);
   s.board->drawText(40,210,_preview.length() ? _preview : "No cached response.",0,1);
 }
 void MarkdownReaderApp::onStart(SystemServices& s) {
-  const String path = "/documents/markdown/readme.md";
+  String path = activeMarkdownPath(s);
   String progress = s.cache ? s.cache->readText("/config/markdown_progress.json", 256) : "";
   _startLine = markdownReadProgressStartLine(progress, path, 0);
   _lastMaxStart = 0;
@@ -326,7 +371,8 @@ void MarkdownReaderApp::onStart(SystemServices& s) {
 
 void MarkdownReaderApp::render(SystemServices& s) {
   titleBar(s,"Markdown Reader");
-  String path = "/documents/markdown/readme.md";
+  if (!s.board->sdMounted()) { s.board->drawText(20,110,"SD not mounted (documents unavailable)",5,1); return; }
+  String path = activeMarkdownPath(s);
   if (!s.cache) {
     s.board->drawText(20,110,"Cache service unavailable",5,1);
     return;
@@ -360,7 +406,7 @@ void MarkdownReaderApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
   if (_startLine < 0) _startLine = 0;
   if (_startLine > _lastMaxStart) _startLine = _lastMaxStart;
   if (s.cache && previous != _startLine) {
-    s.cache->writeText("/config/markdown_progress.json", markdownBuildProgressState("/documents/markdown/readme.md", _startLine));
+    s.cache->writeText("/config/markdown_progress.json", markdownBuildProgressState(activeMarkdownPath(s), _startLine));
   }
 }
 
@@ -459,12 +505,19 @@ void FileExplorerApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
     _page = 0;
   } else {
     String filePath = joinPath(_path, sel.name);
-    s.board->drawText(20, 510, "Selected: " + filePath, 0, 1);
+    String lower = filePath; lower.toLowerCase();
+    if (s.cache) s.cache->writeText("/config/file_open.json", String("{\"path\":\"") + filePath + "\"}");
+    if (lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".txt") || lower.endsWith(".log") || lower.endsWith(".csv")) {
+      s.requestOpenApp = "markdown";
+    } else {
+      s.board->drawText(20, 510, "Unsupported file: " + filePath, 5, 1);
+    }
   }
 }
 
 void WeatherApp::render(SystemServices& s) {
   titleBar(s,"Weather");
+  if (!s.board->sdMounted()) { s.board->drawText(20,110,"SD not mounted (weather cache unavailable)",5,1); return; }
   s.board->drawText(20,110,"Weather by GPS location",0,1);
   s.board->drawText(20,140,"Cache file: /cache/weather/current.json",0,1);
   s.board->drawRect(20,180,880,260,0);
@@ -511,11 +564,16 @@ void WeatherApp::render(SystemServices& s) {
   }
 
   uint64_t nowEpoch = s.gps ? s.gps->fix().epoch : 0;
-  bool stale = isWeatherCacheStale(nowEpoch, info.fetchedEpoch, 1800);
+  bool haveNow = nowEpoch > 0;
+  bool stale = haveNow ? isWeatherCacheStale(nowEpoch, info.fetchedEpoch, 1800) : true;
+  uint64_t ageSec = (haveNow && nowEpoch >= info.fetchedEpoch) ? (nowEpoch - info.fetchedEpoch) : 0;
   s.board->drawText(50,190, String("Fetch: ") + status, 0, 1);
   s.board->drawText(50,220, String("Summary: ") + info.summary, 0, 1);
   s.board->drawText(50,250, String("Fetched: ") + String((uint32_t)info.fetchedEpoch), 0, 1);
-  s.board->drawText(50,280, String("State: ") + (stale ? "STALE" : "FRESH"), stale ? 5 : 0, 2);
+  s.board->drawText(50,280, String("Age(s): ") + (haveNow ? String((uint32_t)ageSec) : String("unknown")), 0, 1);
+  String stateLabel = stale ? "STALE" : "FRESH";
+  if (!haveNow) stateLabel += " (no time source)";
+  s.board->drawText(50,310, String("State: ") + stateLabel, stale ? 5 : 0, 2);
 }
 void WebServerApp::render(SystemServices& s) { titleBar(s,"Web Server"); NetStatus ns=s.net->status(); s.board->drawText(20,110,String("Status: ")+(s.web->running()?"running":"stopped"),0,2); s.board->drawText(20,150,"IP: "+ns.ip.toString(),0,1); s.board->drawText(20,180,"Serving: /webroot",0,1); s.board->drawText(20,230,"Tap upper-left content area to toggle",5,1); }
 void WebServerApp::handleTouch(SystemServices& s, const TouchEvent& ev) { if(ev.type==TouchType::Tap){ if(s.web->running()) s.web->stop(); else s.web->start(); } }
@@ -589,8 +647,8 @@ void GamesApp::render(SystemServices& s) {
       if(st==GoGame::Stone::Black) s.board->fillRect(px+10,py+10,20,20,0);
       else if(st==GoGame::Stone::White){ s.board->drawRect(px+10,py+10,20,20,0); s.board->fillRect(px+11,py+11,18,18,15);}    
     }
-    s.board->drawText(540,160,"Tap board",0,1);
-    s.board->drawText(540,185,"Long=pass",0,1);
+    s.board->drawText(500,160,"Tap board",0,1);
+    s.board->drawText(500,185,"Long=pass",0,1);
   }
 }
 
@@ -651,6 +709,16 @@ void SettingsApp::loadFromConfig(SystemServices& s) {
     _state.hasPowerConfig = true;
     _state.power = p.policy;
   }
+  String deviceCfg = s.cache->readText("/config/device.json", 512);
+  int k = deviceCfg.indexOf("\"gpsTrackLogging\"");
+  if (k >= 0) {
+    int c = deviceCfg.indexOf(':', k);
+    if (c > 0) {
+      String tail = deviceCfg.substring(c + 1);
+      tail.trim();
+      _state.gpsTrackLoggingEnabled = tail.startsWith("true");
+    }
+  }
 }
 
 void SettingsApp::savePowerConfig(SystemServices& s) {
@@ -670,13 +738,18 @@ void SettingsApp::render(SystemServices& s) {
   drawCommonControlRow(*s.board, 20, y, "Deep sleep timeout (ms)", String(_state.power.deepSleepTimeoutMs), _state.selectedRow == 3); y += 24;
   drawCommonControlRow(*s.board, 20, y, "Allow deep sleep", commonControlBoolLabel(_state.power.allowDeepSleep), _state.selectedRow == 4); y += 24;
   drawCommonControlRow(*s.board, 20, y, "Deep sleep duration (s)", String(_state.power.deepSleepDurationSec), _state.selectedRow == 5); y += 24;
-  drawCommonControlRow(*s.board, 20, y, "Allow Wi-Fi in lock", commonControlBoolLabel(_state.power.allowWifiInLockScreen), _state.selectedRow == 6); y += 28;
-  s.board->drawText(20, y, "Changes to power settings are saved to /config/power.json", 0, 1);
+  drawCommonControlRow(*s.board, 20, y, "Allow Wi-Fi in lock", commonControlBoolLabel(_state.power.allowWifiInLockScreen), _state.selectedRow == 6); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "Display lowlight", commonControlBoolLabel(!s.board->backlightOn()), _state.selectedRow == 7); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "Network", s.net->status().wifi ? String("connected") : String("disconnected"), _state.selectedRow == 8); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "Forget saved Wi-Fi", String("clear /config/wifi.json"), _state.selectedRow == 9); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "GPS track logging", commonControlBoolLabel(_state.gpsTrackLoggingEnabled), _state.selectedRow == 10); y += 24;
+  drawCommonControlRow(*s.board, 20, y, "Cache", String("clear weather"), _state.selectedRow == 11); y += 28;
+  s.board->drawText(20, y, "Power: /config/power.json  GPS: /config/device.json", 0, 1);
 }
 
 void SettingsApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
   if (ev.type != TouchType::Tap) return;
-  const int tappedRow = settingsRowFromTapY(ev.y, 156, 24, 7);
+  const int tappedRow = settingsRowFromTapY(ev.y, 156, 24, 12);
   bool editSelected = settingsTapShouldEditSelectedRow(_state.selectedRow, tappedRow);
   if (tappedRow >= 0) _state.selectedRow = tappedRow;
   if (!editSelected) return;
@@ -688,6 +761,24 @@ void SettingsApp::handleTouch(SystemServices& s, const TouchEvent& ev) {
   else if (_state.selectedRow == 4) { _state.power.allowDeepSleep = !_state.power.allowDeepSleep; changed = true; }
   else if (_state.selectedRow == 5) { _state.power.deepSleepDurationSec = cycleDeepSleepDurationSec(_state.power.deepSleepDurationSec, increment); changed = true; }
   else if (_state.selectedRow == 6) { _state.power.allowWifiInLockScreen = !_state.power.allowWifiInLockScreen; changed = true; }
+  else if (_state.selectedRow == 7) { s.board->toggleBacklight(); }
+  else if (_state.selectedRow == 8) { if (s.net->status().wifi) s.net->disconnect(); else s.net->connectSaved(); }
+  else if (_state.selectedRow == 9) {
+    if (s.net) s.net->forgetSaved();
+    _state.hasWifiConfig = false;
+    _state.ssid = "";
+    _state.password = "";
+  }
+  else if (_state.selectedRow == 10) {
+    _state.gpsTrackLoggingEnabled = !_state.gpsTrackLoggingEnabled;
+    if (s.cache) {
+      String body = String("{\"gpsTrackLogging\":") + (_state.gpsTrackLoggingEnabled ? "true" : "false") + "}";
+      s.cache->writeText("/config/device.json", body);
+    }
+  }
+  else if (_state.selectedRow == 11) {
+    if (s.cache) s.cache->writeText("/cache/weather/current.json", "");
+  }
 
   if (_state.power.deepSleepTimeoutMs < _state.power.lockTimeoutMs) _state.power.deepSleepTimeoutMs = _state.power.lockTimeoutMs;
   if (changed) savePowerConfig(s);
