@@ -53,9 +53,16 @@ On first boot the firmware creates:
 /logs
 ```
 
-## Build
+## Build (primary workflow: Arduino IDE)
 
-### PlatformIO
+### Arduino IDE (required path)
+
+1. Open the `PAPER-GO` folder as a sketch in Arduino IDE.
+2. Select an ESP32-S3 board profile that matches the LILYGO T5 4.7 S3 Pro hardware.
+3. Install required board support and libraries from the ESP32 core/library manager as needed by your toolchain.
+4. Build/Upload from Arduino IDE.
+
+### PlatformIO (optional, not required for completion)
 
 ```bash
 pio run
@@ -63,22 +70,11 @@ pio run -t upload
 pio device monitor
 ```
 
-### Arduino IDE (Arduino Studio)
-
-1. Open the `PAPER-GO` folder as a sketch in Arduino IDE.
-2. Select an ESP32-S3 board profile that matches the LILYGO T5 4.7 S3 Pro hardware.
-3. Install required board support and libraries from the ESP32 core/library manager as needed by your toolchain.
-4. Build/Upload from Arduino IDE.
-
-This repository includes a root `PAPER_GO.ino` sketch entry and root-level header shims so Arduino IDE can resolve headers that are stored under `include/`.
+This repository includes a root `PAPER-GO.ino` sketch entry and root-level header shims so Arduino IDE can resolve headers that are stored under `include/`.
 
 ### Boot diagnostics serial output
 
-Use monitor to verify boot-step state transitions from firmware:
-
-```bash
-pio device monitor --baud 115200
-```
+Use a serial monitor at `115200` baud to verify boot-step state transitions from firmware (Arduino IDE Serial Monitor, or optional `pio device monitor --baud 115200`).
 
 Expected boot log prefixes:
 - `[BOOT]` for one-time initialization results (board/cache/gps/net/radio/web/apps), including `=> skipped` for optional boot stages that are intentionally bypassed.
@@ -98,7 +94,7 @@ Expected boot log prefixes:
 - Display backlight defaults to OFF at boot and only turns on from explicit user action (tap on lock screen toggles backlight).
 
 
-## Test commands
+## Optional PlatformIO host/unit test commands
 
 ```bash
 pio test -e T5_E_PAPER_S3_V7_test

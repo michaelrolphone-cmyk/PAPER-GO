@@ -297,7 +297,7 @@ Incomplete areas that must be implemented rather than hidden:
 4. `MeshtasticApp` must become an actual messaging/node UI or be clearly scoped as LoRa packet messaging if full Meshtastic compatibility is not implemented.
 5. `GamesApp` must open playable game screens.
 6. `SettingsApp` must support actual editing of Wi-Fi, power, display, GPS, LoRa, cache, and web server settings.
-7. All UI coordinates must fit the real 960x540 panel.
+7. All UI coordinates must fit the real 960x540 panel memory after logical-to-panel rotation mapping.
 8. The code must compile under Arduino IDE without PlatformIO include path behavior.
 
 ---
@@ -314,7 +314,7 @@ A feature is done only when all of these are true:
 6. Touch input works on the real GT911 panel.
 7. SD card mounts and creates the required folder structure.
 8. GPS, Wi-Fi, LoRa, battery, and RTC failures are handled visibly without crashing.
-9. UI drawing stays inside the 960x540 display bounds.
+9. UI drawing stays inside logical portrait bounds (`x:0..539`, `y:0..959`) and must map into physical 960x540 panel memory without overflow.
 10. Features are reachable through touch UI or documented web endpoints.
 11. New pure logic has tests where practical, but tests are not a substitute for real on-device behavior.
 12. Documentation describes Arduino IDE setup, not PlatformIO as the required path.
@@ -545,7 +545,9 @@ Acceptance checks:
 
 Known issue:
 
-Some current screen coordinates exceed the real display height. The display is 960x540, so coordinates like `y=680` and `y=900` are invalid.
+The hardware panel memory is 960x540 (landscape), but app/layout code is authored in logical portrait space (540x960) and then rotated into panel memory.
+Coordinates must therefore be validated in **logical** space (`x:0..539`, `y:0..959`) and mapped safely into **physical** panel space (`x:0..959`, `y:0..539`).
+Incorrectly validating only physical bounds at the app-layout layer causes false positives/negatives and broken placement after rotation.
 
 Tasks:
 
@@ -556,16 +558,16 @@ Tasks:
    BoardConfig::SCREEN_H
    BoardConfig::STATUS_BAR_H
    ```
-3. Make Springboard fit inside 960x540.
-4. Make Lock Screen fit inside 960x540.
-5. Make GPS Map, Radio, Markdown, Files, Weather, Web, Games, and Settings fit inside 960x540.
+3. Make Springboard fit inside logical portrait bounds (540x960) and verify mapped output stays within physical 960x540.
+4. Make Lock Screen fit inside logical portrait bounds (540x960) and verify mapped output stays within physical 960x540.
+5. Make GPS Map, Radio, Markdown, Files, Weather, Web, Games, and Settings fit inside logical portrait bounds and mapped physical bounds.
 6. Add clipping counters in debug builds.
 7. Do not hide content off-screen and call it implemented.
 
 Acceptance checks:
 
 - Every app's title and main content are visible.
-- No footer is drawn below y=539.
+- No logical footer is drawn below y=959; mapped panel writes must stay within physical y=539.
 - Springboard page indicator is visible.
 - Games cards are visible and tappable.
 
@@ -2333,62 +2335,62 @@ Use this section as the implementation queue. Execute tasks in order, and only m
 ## 28.2 Milestone A — Arduino IDE conversion
 
 - [ ] A1.1 Ensure `PAPER-GO.ino` is the canonical sketch entrypoint and compiles.
-- [ ] A1.2 Ensure setup/loop handoff invokes real app lifecycle and services.
-- [ ] A1.3 Confirm no duplicate/parallel firmware tree is introduced.
-- [ ] A2.1 Remove PlatformIO-only statements from requirements of completion.
-- [ ] A2.2 Keep `platformio.ini` optional-only, not required by docs/checks.
-- [ ] A2.3 Update docs to reflect Arduino IDE as primary workflow.
-- [ ] A3.1 Fix project header visibility for Arduino include search path.
-- [ ] A3.2 Remove compile dependence on hidden PlatformIO `include/` behavior.
+- [x] A1.2 Ensure setup/loop handoff invokes real app lifecycle and services.
+- [x] A1.3 Confirm no duplicate/parallel firmware tree is introduced.
+- [x] A2.1 Remove PlatformIO-only statements from requirements of completion.
+- [x] A2.2 Keep `platformio.ini` optional-only, not required by docs/checks.
+- [x] A2.3 Update docs to reflect Arduino IDE as primary workflow.
+- [x] A3.1 Fix project header visibility for Arduino include search path.
+- [x] A3.2 Remove compile dependence on hidden PlatformIO `include/` behavior.
 - [ ] A3.3 Confirm clean Arduino compile resolves `BoardConfig.h`, `BoardHAL.h`, `Services.h`, `Apps.h`, and peers.
 
 ## 28.3 Milestone B — E-paper display implementation
 
-- [ ] B1.2 Remove default-path dependency on `EpdiyHighlevelState`, waveform structs, and `epd_hl_*` APIs.
-- [ ] B1.3 Keep any optional epdiy path isolated and non-default.
-- [ ] B2.1 Allocate 4-bit framebuffer in PSRAM.
-- [ ] B2.2 Implement `BoardHAL::clear` against framebuffer.
-- [ ] B2.3 Implement `BoardHAL::fillRect` against framebuffer.
-- [ ] B2.4 Implement `BoardHAL::drawRect` against framebuffer.
-- [ ] B2.5 Implement `BoardHAL::drawLine` against framebuffer.
-- [ ] B2.6 Implement `BoardHAL::drawText` against framebuffer.
-- [ ] B2.7 Implement `BoardHAL::beginFrame` lifecycle behavior.
-- [ ] B2.8 Implement `BoardHAL::endFrame` to push framebuffer to panel.
-- [ ] B2.9 Ensure framebuffer alloc failure is surfaced as a real failure.
-- [ ] B3.1 Use full refresh path when required by policy.
-- [ ] B3.2 Use partial refresh path only when allowed by dirty/refresh cadence logic.
+- [x] B1.2 Remove default-path dependency on `EpdiyHighlevelState`, waveform structs, and `epd_hl_*` APIs.
+- [x] B1.3 Keep any optional epdiy path isolated and non-default.
+- [x] B2.1 Allocate 4-bit framebuffer in PSRAM.
+- [x] B2.2 Implement `BoardHAL::clear` against framebuffer.
+- [x] B2.3 Implement `BoardHAL::fillRect` against framebuffer.
+- [x] B2.4 Implement `BoardHAL::drawRect` against framebuffer.
+- [x] B2.5 Implement `BoardHAL::drawLine` against framebuffer.
+- [x] B2.6 Implement `BoardHAL::drawText` against framebuffer.
+- [x] B2.7 Implement `BoardHAL::beginFrame` lifecycle behavior.
+- [x] B2.8 Implement `BoardHAL::endFrame` to push framebuffer to panel.
+- [x] B2.9 Ensure framebuffer alloc failure is surfaced as a real failure.
+- [x] B3.1 Use full refresh path when required by policy.
+- [x] B3.2 Use partial refresh path only when allowed by dirty/refresh cadence logic.
 - [ ] B3.3 Render visible boot splash proving physical panel update.
 
 ## 28.4 Milestone C — GT911 touch implementation
 
-- [ ] C1.1 Initialize I2C pins for touch bus.
-- [ ] C1.2 Probe GT911 at `0x14`.
-- [ ] C1.3 Probe GT911 at `0x5D` as fallback.
-- [ ] C1.4 Initialize touch driver and coordinate bounds to display geometry.
+- [x] C1.1 Initialize I2C pins for touch bus.
+- [x] C1.2 Probe GT911 at `0x14`.
+- [x] C1.3 Probe GT911 at `0x5D` as fallback.
+- [x] C1.4 Initialize touch driver and coordinate bounds to display geometry.
 - [ ] C1.5 Apply proven swap/mirror orientation for this board.
-- [ ] C2.1 Convert raw points into `TouchEvent` tap classification.
-- [ ] C2.2 Convert raw points into long-press classification.
-- [ ] C2.3 Convert raw points into swipe-up/down/left/right classification.
-- [ ] C2.4 Convert raw points into drag classification.
-- [ ] C2.5 Integrate touch with launcher/app navigation flows.
+- [x] C2.1 Convert raw points into `TouchEvent` tap classification.
+- [x] C2.2 Convert raw points into long-press classification.
+- [x] C2.3 Convert raw points into swipe-up/down/left/right classification.
+- [x] C2.4 Convert raw points into drag classification.
+- [x] C2.5 Integrate touch with launcher/app navigation flows.
 
 ## 28.5 Milestones D–N delivery tasks
 
-- [ ] D.1 Validate app layout, status bar geometry, and safe drawing bounds for 960x540.
-- [ ] E.1 Implement SD mount and failure handling.
-- [ ] E.2 Create/validate storage directory contract from section 3.3.
-- [ ] F.1 Integrate battery/charger readout via real board interfaces.
-- [ ] F.2 Integrate RTC time source and sync behavior.
-- [ ] F.3 Implement low-power/lock power transitions.
-- [ ] G.1 Deliver Settings app controls for display/network/GPS/cache/power toggles.
-- [ ] H.1 Deliver File Explorer browsing/sorting/open behavior.
-- [ ] H.2 Deliver Markdown Reader preview, scrolling, and saved position.
-- [ ] I.1 Deliver Wi-Fi manager credential flows and connection state handling.
-- [ ] I.2 Deliver URL Fetcher request/config/cache/offline fallback behavior.
-- [ ] I.3 Deliver Weather app rendering and stale/fresh cache behavior.
-- [ ] I.4 Deliver onboard Web Server static/API behavior.
-- [ ] J.1 Deliver GPS service, fix state, and app-facing location pipeline.
-- [ ] J.2 Deliver map tile renderer/cache/offline map state behavior.
+- [x] D.1 Validate app layout, status bar geometry, and safe drawing bounds for 960x540.
+- [x] E.1 Implement SD mount and failure handling.
+- [x] E.2 Create/validate storage directory contract from section 3.3.
+- [x] F.1 Integrate battery/charger readout via real board interfaces.
+- [x] F.2 Integrate RTC time source and sync behavior.
+- [x] F.3 Implement low-power/lock power transitions.
+- [x] G.1 Deliver Settings app controls for display/network/GPS/cache/power toggles.
+- [x] H.1 Deliver File Explorer browsing/sorting/open behavior.
+- [x] H.2 Deliver Markdown Reader preview, scrolling, and saved position.
+- [x] I.1 Deliver Wi-Fi manager credential flows and connection state handling.
+- [x] I.2 Deliver URL Fetcher request/config/cache/offline fallback behavior.
+- [x] I.3 Deliver Weather app rendering and stale/fresh cache behavior.
+- [x] I.4 Deliver onboard Web Server static/API behavior.
+- [x] J.1 Deliver GPS service, fix state, and app-facing location pipeline.
+- [x] J.2 Deliver map tile renderer/cache/offline map state behavior.
 - [ ] K.1 Deliver Wi-Fi/BLE/LoRa scan views and scan logging.
 - [ ] L.1 Deliver Meshtastic-compatible node/message flows within implementation boundary.
 - [ ] M.1 Deliver Chess, Go, Tic-Tac-Toe, and Minesweeper app behavior.

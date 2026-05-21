@@ -10,6 +10,7 @@ struct SettingsViewState {
   bool hasWifiConfig = false;
   bool hasPowerConfig = false;
   int selectedRow = 0;
+  bool gpsTrackLoggingEnabled = false;
 };
 
 String buildPowerConfigJson(const PowerPolicy& policy);

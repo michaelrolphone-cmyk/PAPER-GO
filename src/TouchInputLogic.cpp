@@ -33,7 +33,8 @@ bool decodeGt911TouchPayload(const uint8_t* payload, size_t payloadLen, TouchPoi
 
 void mapTouchToLandscape(uint16_t panelWidth, uint16_t panelHeight,
                          uint16_t touchMaxX, uint16_t touchMaxY,
-                         int16_t srcX, int16_t srcY, int16_t& dstX, int16_t& dstY) {
+                         int16_t srcX, int16_t srcY, int16_t& dstX, int16_t& dstY,
+                         bool swapXY, bool mirrorX, bool mirrorY) {
   if (panelWidth == 0 || panelHeight == 0 || touchMaxX == 0 || touchMaxY == 0) {
     dstX = 0;
     dstY = 0;
@@ -43,6 +44,18 @@ void mapTouchToLandscape(uint16_t panelWidth, uint16_t panelHeight,
   int32_t clampedY = srcY < 0 ? 0 : srcY;
   if (clampedX > touchMaxX) clampedX = touchMaxX;
   if (clampedY > touchMaxY) clampedY = touchMaxY;
+
+  if (swapXY) {
+    int32_t t = clampedX;
+    clampedX = clampedY;
+    clampedY = t;
+    int32_t mt = touchMaxX;
+    touchMaxX = touchMaxY;
+    touchMaxY = mt;
+  }
+
+  if (mirrorX) clampedX = touchMaxX - clampedX;
+  if (mirrorY) clampedY = touchMaxY - clampedY;
 
   int32_t mappedX = (clampedX * (static_cast<int32_t>(panelWidth) - 1)) / touchMaxX;
   int32_t mappedY = (clampedY * (static_cast<int32_t>(panelHeight) - 1)) / touchMaxY;
