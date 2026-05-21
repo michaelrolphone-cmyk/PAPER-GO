@@ -62,19 +62,11 @@ On first boot the firmware creates:
 3. Install required board support and libraries from the ESP32 core/library manager as needed by your toolchain.
 4. Build/Upload from Arduino IDE.
 
-### PlatformIO (optional, not required for completion)
-
-```bash
-pio run
-pio run -t upload
-pio device monitor
-```
-
 This repository includes a root `PAPER-GO.ino` sketch entry and root-level header shims so Arduino IDE can resolve headers that are stored under `include/`.
 
 ### Boot diagnostics serial output
 
-Use a serial monitor at `115200` baud to verify boot-step state transitions from firmware (Arduino IDE Serial Monitor, or optional `pio device monitor --baud 115200`).
+Use a serial monitor at `115200` baud to verify boot-step state transitions from firmware (Arduino IDE Serial Monitor).
 
 Expected boot log prefixes:
 - `[BOOT]` for one-time initialization results (board/cache/gps/net/radio/web/apps), including `=> skipped` for optional boot stages that are intentionally bypassed.
@@ -93,27 +85,6 @@ Expected boot log prefixes:
 - LoRa defaults are placeholders; wire to the actual SX1262 pins from the LILYGO schematic/examples.
 - Display backlight defaults to OFF at boot and only turns on from explicit user action (tap on lock screen toggles backlight).
 
-
-## Optional PlatformIO host/unit test commands
-
-```bash
-pio test -e T5_E_PAPER_S3_V7_test
-pio test -e T5_E_PAPER_S3_V7_test -f test_lowlight_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_display_pixel_packing_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_display_framebuffer_clip_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_display_update_mode_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_weather_fetch_header_shim
-pio test -e T5_E_PAPER_S3_V7_test -f test_touch_input_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_games_ui_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_dgps_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_dgps_api_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_openapi_spec
-pio test -e T5_E_PAPER_S3_V7_test -f test_map_config_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_map_api_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_map_prefetch_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_file_api_logic
-pio test -e T5_E_PAPER_S3_V7_test -f test_file_explorer_logic
-```
 
 ## Launcher configuration
 

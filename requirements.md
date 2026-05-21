@@ -138,11 +138,9 @@ PY
 
 # PAPER-GO Arduino IDE Implementation Requirements
 
-This file is the implementation contract for `PAPER-GO` when building with the **Arduino IDE**, not PlatformIO.
 
 The firmware target is the **LILYGO T5S3 4.7-inch E-Paper Pro / H752-01** class board. The project is a handheld e-paper field OS with a launcher, touch apps, GPS, SD storage, radio utilities, weather/cache functions, web server tools, and offline utility/game apps.
 
-This document intentionally avoids PlatformIO-only requirements. Do not require `pio run`, `pio test`, `platformio.ini`, PlatformIO environments, or PlatformIO-only library dependency declarations as the definition of done.
 
 ---
 
@@ -154,7 +152,6 @@ These rules apply to every task.
 2. Do not satisfy a requirement by adding a stub, fake class, placeholder screen, TODO-only implementation, mock-only behavior, or "not implemented" notice.
 3. Do not replace existing working behavior with serial-print-only scaffolding.
 4. Do not remove existing features to make a compile error disappear.
-5. Do not add PlatformIO as a required build system.
 6. Do not require the user to manually edit library source files.
 7. Use installed Arduino libraries and real board APIs where available.
 8. Hardware-facing requirements must call the real hardware library or real chip interface.
@@ -182,7 +179,6 @@ Required workflow:
 6. Build and upload from Arduino IDE.
 7. Verify visible screen output on the e-paper display.
 
-The project may keep a `platformio.ini` file for users who want it, but it must not be the required path.
 
 ### 1.2 Arduino sketch layout requirement
 
@@ -210,7 +206,6 @@ Rules:
 
 1. The root `.ino` file must be named to match the sketch folder or be placed in a properly named Arduino sketch folder.
 2. Project headers used by `src/*.cpp` must be available through Arduino's normal include search path.
-3. Do not rely on PlatformIO's root `include/` folder behavior.
 4. If headers are currently under `include/`, either move them into `src/` or add Arduino-compatible forwarding headers in `src/`.
 5. Keep all implementation code in real `.cpp/.h` files where practical.
 6. Do not flatten the whole project into one giant `.ino` unless there is no other working Arduino-compatible option.
@@ -218,9 +213,7 @@ Rules:
 
 Acceptance checks:
 
-- Arduino IDE can open the sketch without needing PlatformIO.
 - A clean Arduino compile finds all project headers.
-- No source file fails because `BoardConfig.h`, `BoardHAL.h`, `Services.h`, `Apps.h`, or any other project header is hidden in a PlatformIO-only include directory.
 - Regression guard: for every `#include "X.h"` used by `src/*.cpp` where the canonical header lives under `include/X.h`, the repository must provide an Arduino-resolvable path for `X.h` (either move `X.h` into `src/` or add a forwarding header in `src/`).
 - CI/local check must include an include-path audit that fails when a new `include/*.h` header is referenced from `src/*.cpp` without an Arduino-resolvable `X.h` path.
 
@@ -436,7 +429,6 @@ Incomplete areas that must be implemented rather than hidden:
 5. `GamesApp` must open playable game screens.
 6. `SettingsApp` must support actual editing of Wi-Fi, power, display, GPS, LoRa, cache, and web server settings.
 7. All UI coordinates must fit the real 960x540 panel memory after logical-to-panel rotation mapping.
-8. The code must compile under Arduino IDE without PlatformIO include path behavior.
 
 ---
 
@@ -455,7 +447,6 @@ A feature is done only when all of these are true:
 9. UI drawing stays inside logical portrait bounds (`x:0..539`, `y:0..959`) and must map into physical 960x540 panel memory without overflow.
 10. Features are reachable through touch UI or documented web endpoints.
 11. New pure logic has tests where practical, but tests are not a substitute for real on-device behavior.
-12. Documentation describes Arduino IDE setup, not PlatformIO as the required path.
 
 ---
 
@@ -478,7 +469,6 @@ Tasks:
    - rename/wrap it so Arduino compiles it correctly, or
    - create a minimal `.ino` that includes the necessary project headers and delegates to firmware setup/loop functions.
 3. Avoid duplicate definitions of `setup()` and `loop()`.
-4. Move or forward project headers so Arduino can find them without PlatformIO's `include/` behavior.
 5. Keep the existing services and app architecture intact.
 
 Acceptance checks:
@@ -487,7 +477,6 @@ Acceptance checks:
 - Compile succeeds without manually copying headers.
 - There is only one `setup()` and one `loop()` in the final Arduino build.
 
-## A2. Remove PlatformIO requirements from docs and acceptance checks
 
 Files to inspect/change:
 
@@ -498,9 +487,6 @@ Files to inspect/change:
 
 Tasks:
 
-1. Replace `pio run` acceptance checks with Arduino IDE compile/upload checks.
-2. Do not delete `platformio.ini` unless explicitly requested.
-3. State that PlatformIO is optional and unsupported by the required workflow.
 4. Document board settings for Arduino IDE:
    - ESP32-S3 compatible board
    - 16 MB flash
@@ -512,14 +498,11 @@ Tasks:
 Acceptance checks:
 
 - README has a clear Arduino IDE setup path.
-- Requirements do not require PlatformIO.
-- PlatformIO is not mentioned as the required build system.
 
 ## A3. Fix project include paths for Arduino
 
 Known issue:
 
-PlatformIO automatically handles root `include/`. Arduino IDE generally does not behave like PlatformIO. Any project header needed by `src/*.cpp` must be available in a path Arduino compiles and searches.
 
 Tasks:
 
@@ -1116,7 +1099,6 @@ Final release acceptance checks:
 - File Explorer can browse SD.
 - Settings can edit at least Wi-Fi and power settings.
 - No required feature is represented only by a stub or placeholder notice.
-- No PlatformIO command is required to build or verify the firmware.
 
 
 Below is a clean project-specific requirements list for the **LILYGO T5-4.7-S3 E-Paper Pro ESP32-S3 SX1262 LoRa 915 MHz TF Card RTC GPS board**. This is **not** the water valve project and **not** the e-ink schedule display project.
@@ -2467,19 +2449,14 @@ Use this section as the implementation queue. Execute tasks in order, and only m
 - [ ] Enforce non-negotiable rules 0.1–0.12 across all new changes.
 - [ ] Verify Arduino IDE build workflow (board profile, PSRAM enabled, 16MB flash, USB CDC where needed).
 - [ ] Verify repository opens as a valid Arduino sketch with `PAPER-GO.ino` as entrypoint.
-- [ ] Verify include resolution works without PlatformIO-only include behavior.
-- [ ] Verify compile and runtime acceptance are evaluated in Arduino IDE (not PlatformIO as the definition of done).
 
 ## 28.2 Milestone A — Arduino IDE conversion
 
 - [ ] A1.1 Ensure `PAPER-GO.ino` is the canonical sketch entrypoint and compiles.
 - [x] A1.2 Ensure setup/loop handoff invokes real app lifecycle and services.
 - [x] A1.3 Confirm no duplicate/parallel firmware tree is introduced.
-- [x] A2.1 Remove PlatformIO-only statements from requirements of completion.
-- [x] A2.2 Keep `platformio.ini` optional-only, not required by docs/checks.
 - [x] A2.3 Update docs to reflect Arduino IDE as primary workflow.
 - [x] A3.1 Fix project header visibility for Arduino include search path.
-- [x] A3.2 Remove compile dependence on hidden PlatformIO `include/` behavior.
 - [ ] A3.3 Confirm clean Arduino compile resolves `BoardConfig.h`, `BoardHAL.h`, `Services.h`, `Apps.h`, and peers.
 
 ## 28.3 Milestone B — E-paper display implementation
