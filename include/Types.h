@@ -29,3 +29,20 @@ struct GpsFix {
 struct BatteryStatus { int percent = -1; bool charging = false; float voltage = 0; float currentMa = 0; };
 struct NetStatus { bool wifi = false; String ssid; IPAddress ip; bool webServer = false; };
 struct RadioSignal { String kind; String name; String address; int rssi = 0; int channel = 0; String protocol; String extra; uint32_t lastSeenMs = 0; };
+
+struct HardwareStatus {
+  bool flashOk = false;
+  bool psramOk = false;
+  bool sdMounted = false;
+  bool wifiReady = false;
+  bool bleReady = false;
+  bool loraReady = false;
+  bool gpsReady = false;
+  bool epdReady = false;
+  bool touchReady = false;
+  bool rtcReady = false;
+  bool tps65185Ready = false;
+  bool bq25896Ready = false;
+  bool bq27220Ready = false;
+  bool pca9535Ready = false;
+};

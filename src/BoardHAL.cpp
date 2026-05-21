@@ -147,9 +147,18 @@ bool BoardHAL::begin() {
   };
   _touchAddr = probeGt911Address(probeI2cAddress, &g_boardI2C);
 
+  _tps65185Available = probeI2cAddress(BoardConfig::TPS65185_ADDR, &g_boardI2C);
+  _pca9535Available = probeI2cAddress(BoardConfig::PCA9535_ADDR, &g_boardI2C);
+  _bq25896Available = probeI2cAddress(BoardConfig::BQ25896_ADDR, &g_boardI2C);
+  _bq27220Available = probeI2cAddress(BoardConfig::BQ27220_ADDR, &g_boardI2C);
+
   g_boardI2C.beginTransmission(BoardConfig::RTC_ADDR);
   _rtcAvailable = isRtcI2cProbeSuccess(static_cast<uint8_t>(g_boardI2C.endTransmission()));
   Serial.printf("RTC probe 0x%02X: %s\n", BoardConfig::RTC_ADDR, _rtcAvailable ? "ok" : "failed");
+  Serial.printf("TPS65185 probe 0x%02X: %s\n", BoardConfig::TPS65185_ADDR, _tps65185Available ? "ok" : "failed");
+  Serial.printf("PCA9535 probe 0x%02X: %s\n", BoardConfig::PCA9535_ADDR, _pca9535Available ? "ok" : "failed");
+  Serial.printf("BQ25896 probe 0x%02X: %s\n", BoardConfig::BQ25896_ADDR, _bq25896Available ? "ok" : "failed");
+  Serial.printf("BQ27220 probe 0x%02X: %s\n", BoardConfig::BQ27220_ADDR, _bq27220Available ? "ok" : "failed");
   if (_touchAddr == 0) {
     Serial.println("GT911 probe failed at 0x14 and 0x5D");
   } else {
