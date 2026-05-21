@@ -54,7 +54,6 @@ void test_embedded_epdiy_sources_use_self_resolving_local_includes() {
       "lib/epdiy/src/board/pca9555.c",
       "lib/epdiy/src/board/epd_board.c",
       "lib/epdiy/src/board/epd_board_common.c",
-      "lib/epdiy/src/board/epd_board_lilygo_t5_47.c",
       "lib/epdiy/src/board/epd_board_v2_v3.c",
       "lib/epdiy/src/board/epd_board_v4.c",
       "lib/epdiy/src/board/epd_board_v5.c",
@@ -93,6 +92,14 @@ void test_include_and_root_epdiy_shims_exist_for_arduino_builds() {
   TEST_ASSERT_TRUE(vendorHdr.good());
 }
 
+
+void test_repo_excludes_lilygo_epd47_references_from_build_paths() {
+  const std::string boardHal = readFile("src/BoardHAL.cpp");
+  TEST_ASSERT_TRUE(boardHal.find("epd_powerdown_lilygo_t5_47") == std::string::npos);
+  TEST_ASSERT_TRUE(boardHal.find("ARDUINO_T5_E_PAPER_S3_V7") == std::string::npos);
+
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_board_hal_includes_epdiy_header);
@@ -100,5 +107,6 @@ int main(int argc, char** argv) {
   RUN_TEST(test_render_lcd_uses_relative_board_header_for_embedded_arduino_builds);
   RUN_TEST(test_embedded_epdiy_sources_use_self_resolving_local_includes);
   RUN_TEST(test_include_and_root_epdiy_shims_exist_for_arduino_builds);
+  RUN_TEST(test_repo_excludes_lilygo_epd47_references_from_build_paths);
   return UNITY_END();
 }

@@ -30,11 +30,7 @@ constexpr uint16_t kMaxPartialFramesBeforeFull = 12;
 
 
 inline void powerDownDisplayPeripherals() {
-#if defined(ARDUINO_T5_E_PAPER_S3_V7)
-  epd_powerdown_lilygo_t5_47();
-#else
-  epd_poweroff();
-#endif
+epd_poweroff();
 }
 
 
