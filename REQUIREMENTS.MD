@@ -92,7 +92,7 @@ Acceptance checks:
 
 ### 2.1 Display library rule
 
-The installed display library is **LilyGo-EPD47**.
+The default display stack is **vendored epdiy** (not LilyGo-EPD47).
 
 That library exposes:
 
@@ -114,7 +114,7 @@ Required normal path:
 #include "epd_driver.h"
 ```
 
-Use the LilyGo-EPD47 style display API:
+Use the vendored epdiy display API:
 
 ```cpp
 epd_init();
@@ -150,7 +150,7 @@ Files to inspect/change:
 
 Tasks:
 
-1. Replace `#include <epdiy.h>` with the correct LilyGo-EPD47 Arduino include:
+1. Keep `#include <epdiy.h>` in the default Arduino build include path:
    ```cpp
    #include "epd_driver.h"
    ```
@@ -244,7 +244,7 @@ Acceptance checks:
 
 The Arduino build must explicitly document and use these libraries only when the code actually includes them:
 
-- LilyGo-EPD47
+- vendored epdiy (default)
 - SensorLib
 - XPowersLib
 - Button2 if physical button helper logic uses it
@@ -407,7 +407,7 @@ Acceptance checks:
 
 ---
 
-# Milestone B — Real e-paper display using LilyGo-EPD47
+# Milestone B — Real e-paper display using vendored epdiy
 
 ## B1. Replace epdiy display dependency in the default Arduino build
 
@@ -479,7 +479,7 @@ Tasks:
 2. Implement `endFrame(fullRefresh)` as a real display update.
 3. For the first working Arduino version, full-screen grayscale refresh is acceptable.
 4. Partial refresh may be added later only after full-screen refresh works.
-5. Do not call unsupported epdiy partial refresh functions in the LilyGo-EPD47 path.
+5. Do not introduce alternate LilyGo-EPD47 driver calls into the default epdiy path.
 
 Acceptance checks:
 

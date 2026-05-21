@@ -27,7 +27,7 @@ This is a separate handheld e-paper app launcher project. It is not the garden w
 
 This project intentionally isolates the board-specific display/touch/power pins in `include/BoardConfig.h` and `src/BoardHAL.*`.
 
-The LILYGO T5-S3 Pro display stack is not a normal SPI e-paper panel. It uses the ED047TC1 960x540 16-gray panel with the board-specific driver stack. Before flashing as final firmware, align `BoardHAL` with the official LILYGO `T5S3-4.7-e-paper-PRO` examples or a proven ED047TC1-compatible library such as epdiy/FastEPD for this board revision.
+The LILYGO T5-S3 Pro display stack is not a normal SPI e-paper panel. It uses the ED047TC1 960x540 16-gray panel with the board-specific driver stack. Before flashing as final firmware, keep `BoardHAL` aligned to the vendored `epdiy` display pipeline used by this repository for ED047TC1 support. Do not switch the default build path to LilyGo-EPD47.
 
 The app framework, storage layout, network services, radio scanner scaffolding, and app lifecycle are written as the firmware foundation.
 
